@@ -386,8 +386,8 @@ describe('codex 图集', () => {
 
   it('resolveCodexFrame 取内置行 + 循环语义', () => {
     expect(resolveCodexFrame('idle', null)).toMatchObject({ row: 0, frames: 6, interval: 160, loop: true })
-    // idle 带逐帧时长（对齐参考实现 dsh-plugin-codex-pets 的 IDLE_DURATIONS）
-    expect(resolveCodexFrame('idle', null).durations).toEqual([280, 110, 110, 140, 140, 320])
+    // idle 带逐帧时长（对齐参考实现 dsh-plugin-codex-pets 的 IDLE_DURATIONS × IDLE_SLOWDOWN）
+    expect(resolveCodexFrame('idle', null).durations).toEqual([1680, 660, 660, 840, 840, 1920])
     // 其余行保持匀速，无逐帧时长
     expect(resolveCodexFrame('waving', null)).toMatchObject({ row: 3, frames: 4, loop: false })
     expect(resolveCodexFrame('waving', null).durations).toBeUndefined()
@@ -399,10 +399,10 @@ describe('codex 图集', () => {
     expect(resolveCodexFrame('idle', { motions: { idle: 4 } })).toMatchObject({ row: 4, frames: 6, interval: 160 })
     // 自定义 spec 未给 durations 时继承内置表的逐帧时长
     expect(resolveCodexFrame('idle', { motions: { idle: { row: 5, frames: 12, interval: 90, loop: false } } }))
-      .toEqual({ row: 5, frames: 12, interval: 90, durations: [280, 110, 110, 140, 140, 320], loop: false })
+      .toEqual({ row: 5, frames: 12, interval: 90, durations: [1680, 660, 660, 840, 840, 1920], loop: false })
     // 只覆盖一项时其余取内置值
     expect(resolveCodexFrame('idle', { motions: { idle: { row: 2, frames: 9 } } }))
-      .toEqual({ row: 2, frames: 9, interval: 160, durations: [280, 110, 110, 140, 140, 320], loop: true })
+      .toEqual({ row: 2, frames: 9, interval: 160, durations: [1680, 660, 660, 840, 840, 1920], loop: true })
   })
 
   it('resolveCodexFrame 支持自定义逐帧时长覆盖', () => {
