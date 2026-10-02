@@ -87,7 +87,7 @@ const style = c([
 
   /* ------------------------------ 气泡层（toast） ----------------------------- */
   // 观感来自 `deepseek-harness-desktop` 的 toast（HeroUI `components/toast/toast.css`
-  // + `constants.js`）：16/12 内边距、24px 圆角、14px 正文、两行截断、层叠 0.05 缩放。
+  // + `constants.js`）：16/12 内边距、24px 圆角、14px 正文、层叠 0.05 缩放；正文改为单行截断。
   // 但**度量按宠物宽度等比缩到合身**（`scaled()`，基准 462px）—— 直接照搬 460px 的固定宽度
   // 会比宠物大出一圈（desktop 那边靠把窗口撑到 `PET_BUBBLE_MIN_WIDTH = 420` 才显得合身，
   // 网页里没有这个手段）。
@@ -217,14 +217,14 @@ const style = c([
     color: 'var(--overlay-foreground, #18181b)',
     overflowWrap: 'anywhere',
   }),
-  // 正文（HeroUI `.toast__description` = text-sm + muted；desktop 再叠一个 `line-clamp-2`）
+  // 正文（HeroUI `.toast__description` = text-sm + muted；本组件只显示一行）
   c('.dsh-pet__bubble-text', {
     fontSize: scaled(0.0304, '13px', '14px'),
     lineHeight: scaled(0.0433, '19px', '20px'),
     color: 'var(--muted, #71717a)',
     display: '-webkit-box',
     WebkitBoxOrient: 'vertical',
-    WebkitLineClamp: '2',
+    WebkitLineClamp: '1',
     overflow: 'hidden',
     overflowWrap: 'anywhere',
   }),
