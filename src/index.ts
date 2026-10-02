@@ -7,7 +7,7 @@
  * - `<Pet>`                   组件（`DshPet` / `CodexPet` 由它内部按配置选，不对外暴露）
  * - `useConfig(...)`          加载配置（对象直用；地址走带缓存的 fetch + JSONC 解析）
  * - `useControllablePet(...)` 命令面（`pet.motion(...)` / `pet.clear()` /
- *                             `pet.bubble(...)` / `pet.muttering(...)`）
+ *                             `pet.bubble(...)` / `pet.muttering(...)` / `pet.fling(...)` / `pet.bounce(...)`）
  *
  * ```tsx
  * const petRef = useRef<PetRef>(null)
@@ -76,15 +76,18 @@ export type {
   PetCorner,
   PetDisplay,
   PetEvents,
+  PetGeometry,
   PetHitboxProps,
   PetMutteringEvent,
   PetMutteringHandle,
   PetMutteringHandler,
   PetMutteringReason,
   PetMutteringShowOptions,
+  PetPhysicsEvent,
   PetProps,
   PetRef,
   PetRenderMotion,
+  PetVelocity,
   PetWeights,
   PhysicsParams,
 } from './types'

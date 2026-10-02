@@ -1,5 +1,6 @@
 import type { UseDraggableOptions } from '@reause/core'
 import type { RefObject } from 'react'
+import type { DragSample } from '../physics'
 import { useDraggable } from '@reause/core'
 import { useCallback, useRef, useState } from 'react'
 
@@ -18,6 +19,10 @@ export interface PetDragOptions {
    * 宠物不会被拖出舞台。
    */
   containerRef?: RefObject<HTMLElement | null>
+  /** 起拖时取消宿主当前飞行。 */
+  onStart?: () => void
+  /** 真拖动后的 pointerup；取消手势、单击不发松手请求。 */
+  onRelease?: (trail: readonly DragSample[], now: number) => void
 }
 
 export interface PetDragResult {
@@ -28,6 +33,8 @@ export interface PetDragResult {
   /** 位置（来自 `useDraggable` 的 `x` / `y`） */
   x: number
   y: number
+  /** 宿主飞行与拖拽共用同一份位置。 */
+  setPosition: (position: { x: number, y: number }) => void
   /**
    * 拖动会话进行中。**超过位移阈值才为 true**（与参考实现一致）：单击/抖动不算拖拽，
    * 不会播放「被抓起」动画。组件把它接到 `dragging` prop 上。
@@ -57,7 +64,7 @@ export interface PetDragResult {
  * 手势结果（`dragging` / `direction`）不掺协议：dsh-pet 用它播 `animations.drag` 的悬浮，
  * Codex 用它播左右行走行。
  */
-export function usePetDrag(options: PetDragOptions = {}): PetDragResult {
+export function usePetDrag({ containerRef, onStart: onDragStart, onRelease }: PetDragOptions = {}): PetDragResult {
   const boxRef = useRef<HTMLDivElement | null>(null)
   const handleRef = useRef<HTMLDivElement | null>(null)
 
@@ -69,24 +76,35 @@ export function usePetDrag(options: PetDragOptions = {}): PetDragResult {
   const engagedRef = useRef(false)
   const startRef = useRef<{ x: number, y: number } | null>(null)
   const lastXRef = useRef<number | undefined>(undefined)
+  const trailRef = useRef<DragSample[]>([])
 
-  const onStart: UseDraggableOptions['onStart'] = useCallback((position) => {
+  const onStart: UseDraggableOptions['onStart'] = useCallback((_position, event) => {
+    onDragStart?.()
     engagedRef.current = false
-    startRef.current = { x: position.x, y: position.y }
+    // useDraggable 的 onStart 给的是抓取偏移，不是位置；阈值用同一套 client 坐标。
+    startRef.current = { x: event.clientX, y: event.clientY }
     lastXRef.current = undefined
+    const box = boxRef.current
+    trailRef.current = [{ t: event.timeStamp, x: box?.offsetLeft ?? 0, y: box?.offsetTop ?? 0 }]
     setDragging(false)
     setDirection(undefined)
     setPressed(true)
-  }, [])
+  }, [onDragStart])
 
-  const onMove: UseDraggableOptions['onMove'] = useCallback((position) => {
+  const onMove: UseDraggableOptions['onMove'] = useCallback((position, event) => {
     const start = startRef.current
     if (start === null)
       return
 
+    // 采样的是容器夹取后的实际位置，不把越界的指针距离当作甩动速度。
+    const trail = trailRef.current
+    trail.push({ t: event.timeStamp, ...position })
+    while (trail.length > 1 && trail[0]!.t < event.timeStamp - 200)
+      trail.shift()
+
     // 未达阈值：单击 / 抖动都不算拖拽
     if (!engagedRef.current) {
-      if (Math.hypot(position.x - start.x, position.y - start.y) < DRAG_START_THRESHOLD)
+      if (Math.hypot(event.clientX - start.x, event.clientY - start.y) < DRAG_START_THRESHOLD)
         return
       engagedRef.current = true
       setDragging(true)
@@ -103,18 +121,24 @@ export function usePetDrag(options: PetDragOptions = {}): PetDragResult {
       setDirection(stepX > 0 ? 'right' : 'left')
   }, [])
 
-  const onEnd: UseDraggableOptions['onEnd'] = useCallback(() => {
+  const onEnd: UseDraggableOptions['onEnd'] = useCallback((_position, event) => {
+    const release = engagedRef.current && event.type === 'pointerup'
+    const trail = trailRef.current
+    trailRef.current = []
+    engagedRef.current = false
     startRef.current = null
     lastXRef.current = undefined
     setDragging(false)
     setDirection(undefined)
     setPressed(false)
-  }, [])
+    if (release)
+      onRelease?.(trail, event.timeStamp)
+  }, [onRelease])
 
   const { x, y, setX, setY } = useDraggable(boxRef, {
     handle: handleRef,
     // 给了容器就夹在容器内（`useDraggable` 的 restrictInView 语义），宠物不会被拖出舞台
-    containerElement: options.containerRef,
+    containerElement: containerRef,
     initialValue: { x: 0, y: 0 },
     onStart,
     onMove,
@@ -123,17 +147,19 @@ export function usePetDrag(options: PetDragOptions = {}): PetDragResult {
 
   const onHitboxPointerDown = useCallback(() => setPressed(true), [])
   const onHitboxPointerUp = useCallback(() => setPressed(false), [])
-
-  const reset = useCallback(() => {
-    setX(0)
-    setY(0)
+  const setPosition = useCallback((position: { x: number, y: number }) => {
+    setX(position.x)
+    setY(position.y)
   }, [setX, setY])
+
+  const reset = useCallback(() => setPosition({ x: 0, y: 0 }), [setPosition])
 
   return {
     boxRef,
     handleRef,
     x,
     y,
+    setPosition,
     dragging,
     direction,
     pressed,

@@ -75,6 +75,7 @@ export function DshPet(props: DshPetProps) {
     cache = true,
     hitboxRef,
     onHitboxPointerDown,
+    onHitboxPointerMove,
     onHitboxPointerUp,
     onHitboxPointerCancel,
     mirrored,
@@ -305,6 +306,7 @@ export function DshPet(props: DshPetProps) {
         className="dsh-pet__hitbox"
         style={PET_HIT_BOX}
         onPointerDown={onHitboxPointerDown}
+        onPointerMove={onHitboxPointerMove}
         onPointerUp={onHitboxPointerUp}
         onPointerCancel={onHitboxPointerCancel}
       />

@@ -104,11 +104,17 @@ export interface DshPetEntry {
 
 /** dsh-pet `physics` 段（拖拽抛掷手感；组件只透传与校验，不实现物理）。 */
 export interface PhysicsParams {
+  /** 重力 CSS px/s²，>= 0；默认 1400。 */
   gravity: number
+  /** 碰边恢复系数 [0, 1]；默认 0.78。 */
   restitution: number
+  /** 地面水平摩擦 /s，>= 0；默认 2.5。 */
   groundFriction: number
+  /** 顶部是否反弹；默认 true，由宿主实现。 */
   ceilingBounce: boolean
+  /** 估速/拖拽增益，> 0；默认 1，fling/bounce 不重复施加。 */
   throwPower: number
+  /** 自动宠物碰撞开关；默认 false，不拦截显式 bounce。 */
   petCollision: boolean
 }
 

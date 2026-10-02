@@ -19,7 +19,9 @@ export default defineConfig({
       reporter: ['text', 'html', 'json'],
       reportsDirectory: 'coverage',
       include: ['src/**/*.{ts,tsx}'],
-      exclude: ['src/types/**', 'src/**/*.d.ts'],
+      exclude: [...sharedExclude, 'src/types/**', 'src/**/*.d.ts'],
+      // 浏览器预打包的 sourcemap 会带入 playground，重映射后仍只统计库。
+      excludeAfterRemap: true,
       // 门槛不达标时也要先把报告打出来，否则看不出差在哪
       reportOnFailure: true,
       thresholds: {

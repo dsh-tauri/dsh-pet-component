@@ -78,6 +78,7 @@ export function CodexPet(props: CodexPetProps) {
     cache = true,
     hitboxRef,
     onHitboxPointerDown,
+    onHitboxPointerMove,
     onHitboxPointerUp,
     onHitboxPointerCancel,
     mirrored,
@@ -270,6 +271,7 @@ export function CodexPet(props: CodexPetProps) {
         className="dsh-pet__hitbox"
         style={{ left: '25%', top: '10%', width: '50%', height: '85%' }}
         onPointerDown={onHitboxPointerDown}
+        onPointerMove={onHitboxPointerMove}
         onPointerUp={onHitboxPointerUp}
         onPointerCancel={onHitboxPointerCancel}
       />
