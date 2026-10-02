@@ -11,7 +11,7 @@ import { BubbleSpinner } from './bubble-icons'
  *
  * | 维度 | 对齐来源 |
  * | --- | --- |
- * | 字号 / 行高 / 圆角 / 内外边距 / 两行截断 | `@heroui/styles/dist/components/toast.css`（见 `src/styles.ts`） |
+ * | 字号 / 行高 / 圆角 / 内外边距 | `@heroui/styles/dist/components/toast.css`（见 `src/styles.ts`；正文单行截断） |
  * | 默认图标 | `@gravity-ui/icons`（desktop 全程用的同一批：`CircleInfo` / `CircleCheck` / …） |
  * | 加载态 | HeroUI `Spinner`（desktop 在 `isLoading` 时就是它） |
  * | 层叠（scale / 间距 / 裁剪 / z-index） | `components/toast/toast.js` + `constants.js` |

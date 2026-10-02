@@ -116,6 +116,20 @@ describe('非最前那条的内容不可见', () => {
  * 这两条守住「宠物一小，整条 toast 连字号一起缩下去」这个真实回归。
  */
 describe('气泡度量', () => {
+  it('长描述只占一行，保留完整文本并截断溢出', async () => {
+    const description = '这是一条足够长的描述，用来验证正文不会显示第二行。'.repeat(20)
+    const { container } = await render(<PetBubbleLayer bubbles={[bubble('a', 1, { title: '标题', description })]} />)
+    const text = query(container, '.dsh-pet__bubble-text')
+    text.style.width = '120px'
+    const style = getComputedStyle(text)
+
+    expect(style.webkitLineClamp).toBe('1')
+    expect(style.overflow).toBe('hidden')
+    expect(text.clientHeight).toBe(Number.parseFloat(style.lineHeight))
+    expect(text.scrollHeight).toBeGreaterThan(text.clientHeight)
+    expect(text.textContent).toBe(description)
+  })
+
   it('宠物很小时字号/内边距/图标停在下界，不再缩成 11px / 6·8px', async () => {
     const { container } = await render(
       <div style={{ '--dsh-pet-size': '200px' } as CSSProperties}>
