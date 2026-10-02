@@ -1,5 +1,6 @@
 import type { CSSProperties, PointerEvent as ReactPointerEvent, Ref } from 'react'
 import type { PetBubbleHandle, PetMutteringHandle, PetMutteringHandler } from './bubble'
+import type { PhysicsParams } from './config'
 import type { MotionInput, PetRenderMotion } from './motion'
 
 /**
@@ -12,6 +13,8 @@ export interface PetHitboxProps {
   hitboxRef?: Ref<HTMLDivElement>
   /** Hitbox 指针事件绑定 */
   onHitboxPointerDown?: (e: ReactPointerEvent<HTMLDivElement>) => void
+  /** 拖拽采样；出命中箱仍要接收事件时，宿主自行 setPointerCapture 或监听全局 move。 */
+  onHitboxPointerMove?: (e: ReactPointerEvent<HTMLDivElement>) => void
   onHitboxPointerUp?: (e: ReactPointerEvent<HTMLDivElement>) => void
   onHitboxPointerCancel?: (e: ReactPointerEvent<HTMLDivElement>) => void
 }
@@ -34,6 +37,27 @@ export interface PetAnimationInfo {
   row?: number
   /** Codex：图集列（当前帧） */
   column?: number
+}
+
+/** 最终速度（CSS px/s）：+x 向右，+y 向下；不再施加死区、限速或 throwPower。 */
+export interface PetVelocity {
+  vx: number
+  vy: number
+}
+
+/** 调用时的视口 CSS px 快照；body 是真实 hitbox 的绝对 AABB，不是透明像素轮廓。 */
+export interface PetGeometry {
+  x: number
+  y: number
+  width: number
+  height: number
+  body: { left: number, top: number, right: number, bottom: number }
+}
+
+/** 宿主物理请求：geometry 是起点快照，physics 是已合并并校验的参数副本。 */
+export interface PetPhysicsEvent extends PetVelocity {
+  geometry: PetGeometry
+  physics: PhysicsParams
 }
 
 /** 三种渲染器共用的表现层 props。 */
@@ -174,6 +198,12 @@ export interface PetProps extends PetCommonProps {
   lookDeadzone?: number
   /** look 的作用半径 px（**只对 codex 生效**）；缺省 `max(宽, 高) * 1.25` */
   lookRadius?: number
+  /** 宿主物理参数：逐字段 prop > dsh 配置顶层 physics > 默认；undefined 不覆盖配置。 */
+  physics?: Partial<PhysicsParams>
+  /** fling 命令请求；宿主估速与移动，组件不自动处理松手。 */
+  onFling?: (event: PetPhysicsEvent) => void
+  /** bounce 命令请求；宿主用碰撞解算后的最终速度替换当前速度。 */
+  onBounce?: (event: PetPhysicsEvent) => void
   /**
    * 自动碎碎念（v0.2.0）。
    *
@@ -246,6 +276,15 @@ export interface PetRef {
   clear: () => void
   /** 当前生效的动作（只读；可能是手势态 `dragging`） */
   readonly current: PetRenderMotion
+  /**
+   * 请求宿主以最终初速甩出，不改变动作或位置。无监听器/布局、未挂载或非有限速度为空操作；
+   * 0、负速度与低速均合法。松手估速、增益、重力、边界和飞行生命周期由宿主负责。
+   */
+  fling: (velocity: PetVelocity) => void
+  /** 碰撞弹开：以解算后的最终绝对速度替换旧速度，不叠加；空操作条件同 fling。 */
+  bounce: (velocity: PetVelocity) => void
+  /** 每读一次即时测量 renderer + hitbox；未挂载/无布局为 null，visibility:hidden 仍有布局。 */
+  readonly geometry: PetGeometry | null
   /**
    * 气泡命令面（v0.2.0）—— 叠加在宠物上方、原地更新、定时收起、可捆绑运行动画。
    *

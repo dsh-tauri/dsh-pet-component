@@ -28,7 +28,7 @@ import { useRef } from 'react'
  *
  * 命令面下发过的动作优先于 `motion` prop，直到 `motion` 取值变化 —— 那是 `usePetMotion`
  * 的层叠规则，本 hook 只做转发。组件还没挂载（`ref.current` 为 `null`）时全部是安全空操作：
- * 气泡返回空字符串 key、`close`/`clear`/`muttering` 静默忽略。
+ * 气泡返回空字符串 key、geometry 返回 null，其余命令（含 fling/bounce）静默忽略。
  *
  * @param petRef 传给 `<Pet ref={…} />` 的同一个 ref
  * @returns 稳定的命令面（同一实例内引用不变，可安全放进依赖数组）
@@ -55,6 +55,15 @@ export function useControllablePet(petRef?: RefObject<PetRef | null>): PetRef {
       },
       get current() {
         return petRef?.current?.current ?? 'idle'
+      },
+      fling(velocity) {
+        petRef?.current?.fling(velocity)
+      },
+      bounce(velocity) {
+        petRef?.current?.bounce(velocity)
+      },
+      get geometry() {
+        return petRef?.current?.geometry ?? null
       },
       bubble,
       muttering,

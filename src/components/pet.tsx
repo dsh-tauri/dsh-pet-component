@@ -1,8 +1,8 @@
 import type { CSSProperties, PointerEvent as ReactPointerEvent, Ref, RefObject } from 'react'
-import type { CodexPetConfig, DshPetConfig, MotionInput, PetBubble, PetBubbleHandle, PetConfig, PetProps, PetRef } from '../types'
+import type { CodexPetConfig, DshPetConfig, MotionInput, PetBubble, PetBubbleHandle, PetConfig, PetGeometry, PetPhysicsEvent, PetProps, PetRef, PetVelocity } from '../types'
 import { useElementSize } from '@reause/core'
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { detectPetKind, dshEventPool, resolveMutteringPlan, selectPetEntry } from '../config'
+import { detectPetKind, dshEventPool, resolveMutteringPlan, resolvePhysics, selectPetEntry } from '../config'
 import { useConfig } from '../hooks/use-config'
 import { useControllablePet } from '../hooks/use-controllable-pet'
 import { useDoubleClick } from '../hooks/use-double-click'
@@ -55,7 +55,7 @@ function useMergedRef(hostRef: Ref<PetRef | null> | undefined, innerRef: RefObje
  * 不会因为「猜错渲染器」而闪一下。
  *
  * **公开命令面只有这一处**（`PetRef`）：渲染器内部只写 `motion` / `clear` / `current`，
- * 本层把气泡（`PetBubbleHandle`）与碎碎念（`PetMutteringHandle`）两个命名空间并上去 ——
+ * 本层组合气泡、碎碎念与宿主物理请求 ——
  * 一个 ref 只能被一处 `useImperativeHandle` 写，而两个渲染器都不需要知道「气泡」这件事。
  *
  * ```tsx
@@ -97,6 +97,9 @@ export function Pet(props: PetProps) {
     lookRadius,
     ref,
     motion,
+    physics,
+    onFling,
+    onBounce,
     muttering,
     mutteringPrompt,
     mutteringIntervalSec,
@@ -140,6 +143,35 @@ export function Pet(props: PetProps) {
   const motionClear = useCallback(() => {
     motionRef.current?.clear()
   }, [])
+
+  /* --------------------------------- 宿主物理 -------------------------------- */
+
+  const readGeometry = useCallback((): PetGeometry | null => {
+    // 只测 renderer 与 hitbox：壳体可能含气泡，绝对定位的宠物也可能完全移出壳体布局。
+    const root = shellRef.current?.querySelector<HTMLElement>('.dsh-pet')
+    const hitbox = root?.querySelector<HTMLElement>('.dsh-pet__hitbox')
+    if (!root || !hitbox)
+      return null
+    const box = root.getBoundingClientRect()
+    const body = hitbox.getBoundingClientRect()
+    if (box.width <= 0 || box.height <= 0 || body.width <= 0 || body.height <= 0)
+      return null
+    return {
+      x: box.left,
+      y: box.top,
+      width: box.width,
+      height: box.height,
+      body: { left: body.left, top: body.top, right: body.right, bottom: body.bottom },
+    }
+  }, [])
+
+  const requestPhysics = useCallback((listener: ((event: PetPhysicsEvent) => void) | undefined, velocity: PetVelocity) => {
+    if (!listener || !Number.isFinite(velocity?.vx) || !Number.isFinite(velocity?.vy))
+      return
+    const geometry = readGeometry()
+    if (geometry !== null)
+      listener({ vx: velocity.vx, vy: velocity.vy, geometry, physics: resolvePhysics(dshConfig?.physics, physics) })
+  }, [dshConfig, physics, readGeometry])
 
   /* ---------------------------------- 气泡 --------------------------------- */
 
@@ -305,9 +337,14 @@ export function Pet(props: PetProps) {
     get current() {
       return motionRef.current?.current ?? 'idle'
     },
+    fling: velocity => requestPhysics(onFling, velocity),
+    bounce: velocity => requestPhysics(onBounce, velocity),
+    get geometry() {
+      return readGeometry()
+    },
     bubble: bubbleHandle,
     muttering: mutteringHandle,
-  }), [bubbleHandle, motionClear, motionRequest, mutteringHandle])
+  }), [bubbleHandle, motionClear, motionRequest, mutteringHandle, onBounce, onFling, readGeometry, requestPhysics])
 
   useImperativeHandle(mergedRef, () => handle, [handle])
 

@@ -492,6 +492,20 @@ describe('尺寸与参数归一化', () => {
     expect(resolvePetSize({ fallbackSize: 0 })).toBe(462)
   })
 
+  it('resolvePhysics：逐字段覆盖、非法参数回退，保留合法零值/false', () => {
+    const defaults = resolvePhysics(undefined)
+    expect(resolvePhysics({ gravity: 12, restitution: 0.4, petCollision: true }, { gravity: 0, restitution: undefined, petCollision: false }))
+      .toEqual({ ...defaults, gravity: 0, restitution: 0.4, petCollision: false })
+    expect(resolvePhysics({ gravity: 0, restitution: 0, groundFriction: 0, ceilingBounce: false, throwPower: 0.1 }))
+      .toEqual({ ...defaults, gravity: 0, restitution: 0, groundFriction: 0, ceilingBounce: false, throwPower: 0.1 })
+    expect(resolvePhysics({ restitution: 1 })).toMatchObject({ restitution: 1 })
+    for (const invalid of [Number.NaN, Infinity, -Infinity, -1]) {
+      expect(resolvePhysics({ gravity: invalid, restitution: invalid, groundFriction: invalid, throwPower: invalid })).toEqual(defaults)
+    }
+    // 配置来自 JSON，不可信值即使越过 TS 也必须回退。
+    expect(resolvePhysics(JSON.parse('{"ceilingBounce":0,"petCollision":"true","throwPower":0,"restitution":2}'))).toEqual(defaults)
+  })
+
   it('resolveWeights / resolvePhysics 填默认值', () => {
     expect(resolveWeights(undefined)).toEqual({ idle: 10, turn: 5, move: 5 })
     expect(resolveWeights({ idle: 1 })).toEqual({ idle: 1, turn: 5, move: 5 })

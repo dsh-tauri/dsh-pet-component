@@ -121,7 +121,44 @@ export function App() {
 
 ```
 
-### 3. 气泡与碎碎念 (Bubble & Muttering)
+### 3. 甩动与碰撞弹开（宿主物理协议）
+
+```tsx
+<Pet
+  ref={petRef}
+  config={config}
+  uri={uri}
+  physics={{ throwPower: 1, petCollision: true }}
+  onFling={event => hostPhysics.start(event)}
+  onBounce={event => hostPhysics.replaceVelocity(event)}
+/>
+
+// 宿主采样并估算松手后的最终初速；碰撞后传入解算后的最终速度。
+pet.fling({ vx: 900, vy: -500 })
+pet.bounce({ vx: -300, vy: 100 })
+const box = pet.geometry // 每读一次即时测量；未挂载/无布局时为 null
+```
+
+这两个命令只请求对应回调，不改变动作或位置，不自动采样、驱动飞行或检测碰撞。
+`bounce` 的速度**替换**旧速度，不是增量或冲量；`physics.petCollision=false` 不拦截显式命令。
+速度统一为 CSS px/s（+x 向右、+y 向下），必须有限；0、负值、低速都原样传递，
+不再次施加死区、限速或 `throwPower`。宿主估速时先应用增益，不在回调里重复乘。
+
+回调的 `PetPhysicsEvent` 为 `{ vx, vy, geometry, physics }`：`geometry` 是调用时快照，
+包含 renderer 的 `{ x, y, width, height }` 和真实 hitbox 的 `body: { left, top, right, bottom }`，
+全部为**视口 CSS px**（含 transform/滚动影响）；不是气泡壳体、透明像素轮廓或固定宽高比推算。
+局部/桌面坐标转换、多屏边界、速度状态、重力、反弹和生命周期由宿主负责。
+隐藏但仍有布局的宠物仍可测量；是否参与自动碰撞由宿主决定。
+无监听器、未挂载、无布局或速度非法时命令是安全空操作。
+
+`physics` 逐字段 `prop > dsh 配置顶层 physics > 默认值`，`undefined` 不覆盖配置；Codex 使用 prop/默认。
+默认依次为 `gravity=1400`、`restitution=0.78`、`groundFriction=2.5`、`ceilingBounce=true`、
+`throwPower=1`、`petCollision=false`。非法数值/类型逐字段回退默认，合法 0/false 保留；
+事件中的参数是独立副本，组件本身不执行这些物理参数。
+宿主可用 `onHitboxPointerDown/Move/Up/Cancel` 采样；要收出框后的 move，请在 down 时自行
+`event.currentTarget.setPointerCapture(event.pointerId)` 或绑定全局事件，组件不接管指针会话。
+
+### 4. 气泡与碎碎念 (Bubble & Muttering)
 
 ```ts
 // 下发与更新气泡
@@ -165,6 +202,9 @@ pet.bubble.clear()         // 清空气泡
 | `mirrored` | `boolean` | `false` | 是否开启水平镜像翻转 |
 | `muttering` | `boolean` | *config* | 是否开启碎碎念 |
 | `onMotionChange` | `(motion: string) => void` | — | 实际动作变更回调 |
+| `physics` | `Partial<PhysicsParams>` | *config / 内置默认* | 覆盖宿主物理参数，不驱动物理 |
+| `onFling` / `onBounce` | `(event: PetPhysicsEvent) => void` | — | 最终速度与几何/参数快照 |
+| `onHitboxPointerMove` | `(event: React.PointerEvent<HTMLDivElement>) => void` | — | 原样透传，捕获与采样由宿主负责 |
 
 ---
 

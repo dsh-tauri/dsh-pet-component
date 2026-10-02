@@ -37,7 +37,10 @@ export type {
   DshPetProps,
   PetAnimationInfo,
   PetCommonProps,
+  PetGeometry,
   PetHitboxProps,
+  PetPhysicsEvent,
   PetProps,
   PetRef,
+  PetVelocity,
 } from './props'

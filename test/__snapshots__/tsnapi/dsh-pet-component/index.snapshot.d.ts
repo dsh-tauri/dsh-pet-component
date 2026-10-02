@@ -160,9 +160,22 @@ export interface PetConfigResult<T> {
   error: Error | null;
   loading: boolean;
 }
+export interface PetGeometry {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  body: {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+  };
+}
 export interface PetHitboxProps {
   hitboxRef?: Ref<HTMLDivElement>;
   onHitboxPointerDown?: (_: PointerEvent<HTMLDivElement>) => void;
+  onHitboxPointerMove?: (_: PointerEvent<HTMLDivElement>) => void;
   onHitboxPointerUp?: (_: PointerEvent<HTMLDivElement>) => void;
   onHitboxPointerCancel?: (_: PointerEvent<HTMLDivElement>) => void;
 }
@@ -183,6 +196,10 @@ export interface PetMutteringShowOptions {
   image?: string;
   duration?: number;
 }
+export interface PetPhysicsEvent extends PetVelocity {
+  geometry: PetGeometry;
+  physics: PhysicsParams;
+}
 export interface PetProps extends PetCommonProps {
   kind?: 'dsh' | 'codex';
   config: string | PetConfig;
@@ -197,6 +214,9 @@ export interface PetProps extends PetCommonProps {
   lookAtPointer?: boolean;
   lookDeadzone?: number;
   lookRadius?: number;
+  physics?: Partial<PhysicsParams>;
+  onFling?: (_: PetPhysicsEvent) => void;
+  onBounce?: (_: PetPhysicsEvent) => void;
   muttering?: boolean;
   mutteringPrompt?: string;
   mutteringIntervalSec?: number;
@@ -210,8 +230,15 @@ export interface PetRef {
   motion: (_: MotionInput) => void;
   clear: () => void;
   readonly current: PetRenderMotion;
+  fling: (_: PetVelocity) => void;
+  bounce: (_: PetVelocity) => void;
+  readonly geometry: PetGeometry | null;
   bubble: PetBubbleHandle;
   muttering: PetMutteringHandle;
+}
+export interface PetVelocity {
+  vx: number;
+  vy: number;
 }
 export interface PetWeights {
   idle: number;

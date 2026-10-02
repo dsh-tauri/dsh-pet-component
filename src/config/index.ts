@@ -803,15 +803,17 @@ export function resolveWeights(weights: Partial<PetWeights> | undefined): PetWei
   }
 }
 
-/** 归一化 `physics`（缺省值与 dsh-pet `src/shared/physics.ts` 常量一致）。 */
-export function resolvePhysics(physics: Partial<PhysicsParams> | undefined): PhysicsParams {
+/** 逐字段 override > 配置 > 默认；undefined 不覆盖配置，非法值回落 dsh-pet 默认值。 */
+export function resolvePhysics(physics: Partial<PhysicsParams> | undefined, overrides?: Partial<PhysicsParams>): PhysicsParams {
+  const params = { ...physics, ...Object.fromEntries(Object.entries(overrides ?? {}).filter(([, value]) => value !== undefined)) }
+  const throwPower = finiteOr(params.throwPower, 1)
   return {
-    gravity: finiteOr(physics?.gravity, 1400),
-    restitution: finiteOr(physics?.restitution, 0.78),
-    groundFriction: finiteOr(physics?.groundFriction, 2.5),
-    ceilingBounce: physics?.ceilingBounce ?? true,
-    throwPower: finiteOr(physics?.throwPower, 1),
-    petCollision: physics?.petCollision ?? false,
+    gravity: finiteOr(params.gravity, 1400, 0),
+    restitution: finiteOr(params.restitution, 0.78, 0, 1),
+    groundFriction: finiteOr(params.groundFriction, 2.5, 0),
+    ceilingBounce: typeof params.ceilingBounce === 'boolean' ? params.ceilingBounce : true,
+    throwPower: throwPower > 0 ? throwPower : 1,
+    petCollision: typeof params.petCollision === 'boolean' ? params.petCollision : false,
   }
 }
 
@@ -824,8 +826,8 @@ export function supportsIdleRoll(config: DshPetConfig | null | undefined): boole
   return (config.animations?.categories?.length ?? 0) > 0
 }
 
-function finiteOr(value: unknown, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+function finiteOr(value: unknown, fallback: number, min = -Infinity, max = Infinity): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max ? value : fallback
 }
 
 /* -------------------------------------------------------------------------- */

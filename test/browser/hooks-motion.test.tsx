@@ -426,6 +426,8 @@ interface FakePet {
   pet: PetRef
   motion: ReturnType<typeof vi.fn>
   clear: ReturnType<typeof vi.fn>
+  fling: ReturnType<typeof vi.fn>
+  bounce: ReturnType<typeof vi.fn>
   showBubble: ReturnType<typeof vi.fn>
   closeBubble: ReturnType<typeof vi.fn>
   clearBubbles: ReturnType<typeof vi.fn>
@@ -437,6 +439,8 @@ interface FakePet {
 function makeFakePet(current: PetRenderMotion = 'thinking'): FakePet {
   const motion = vi.fn()
   const clear = vi.fn()
+  const fling = vi.fn()
+  const bounce = vi.fn()
   const showBubble = vi.fn(() => 'bubble-1')
   const closeBubble = vi.fn()
   const clearBubbles = vi.fn()
@@ -446,6 +450,9 @@ function makeFakePet(current: PetRenderMotion = 'thinking'): FakePet {
   const pet: PetRef = {
     motion,
     clear,
+    fling,
+    bounce,
+    geometry: null,
     get current() {
       return current
     },
@@ -453,7 +460,7 @@ function makeFakePet(current: PetRenderMotion = 'thinking'): FakePet {
     muttering: Object.assign(showMuttering, { request: requestMuttering }),
   }
 
-  return { pet, motion, clear, showBubble, closeBubble, clearBubbles, showMuttering, requestMuttering }
+  return { pet, motion, clear, fling, bounce, showBubble, closeBubble, clearBubbles, showMuttering, requestMuttering }
 }
 
 describe('useControllablePet', () => {
@@ -469,6 +476,11 @@ describe('useControllablePet', () => {
     expect(fake.clear).toHaveBeenCalledTimes(1)
 
     expect(view.result.current.current).toBe('working')
+    view.result.current.fling({ vx: 12, vy: -5 })
+    expect(fake.fling).toHaveBeenCalledWith({ vx: 12, vy: -5 })
+    view.result.current.bounce({ vx: 0, vy: 0 })
+    expect(fake.bounce).toHaveBeenCalledWith({ vx: 0, vy: 0 })
+    expect(view.result.current.geometry).toBeNull()
   })
 
   it('气泡命令转发：调用 + close / clear', async () => {
@@ -509,6 +521,9 @@ describe('useControllablePet', () => {
     expect(() => view.result.current.motion('idle')).not.toThrow()
     expect(() => view.result.current.clear()).not.toThrow()
     expect(view.result.current.current).toBe('idle')
+    expect(view.result.current.geometry).toBeNull()
+    expect(() => view.result.current.fling({ vx: 1, vy: 2 })).not.toThrow()
+    expect(() => view.result.current.bounce({ vx: 1, vy: 2 })).not.toThrow()
     expect(view.result.current.bubble({ title: 'x' })).toBe('')
     expect(() => view.result.current.bubble.close()).not.toThrow()
     expect(() => view.result.current.bubble.clear()).not.toThrow()
@@ -520,6 +535,9 @@ describe('useControllablePet', () => {
     const view = await renderHook(() => useControllablePet())
 
     expect(view.result.current.current).toBe('idle')
+    expect(view.result.current.geometry).toBeNull()
+    expect(() => view.result.current.fling({ vx: 1, vy: 2 })).not.toThrow()
+    expect(() => view.result.current.bounce({ vx: 1, vy: 2 })).not.toThrow()
     expect(view.result.current.bubble({ title: 'x' })).toBe('')
     expect(() => view.result.current.motion('idle')).not.toThrow()
     expect(() => view.result.current.muttering.request()).not.toThrow()
