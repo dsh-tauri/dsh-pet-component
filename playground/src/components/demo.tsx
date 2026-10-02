@@ -10,7 +10,7 @@ import {
   motionLabel,
 } from '../constants'
 import { useDomAttribute } from '../hooks/use-dom-attribute'
-import { usePetDrag } from '../hooks/use-pet-drag'
+import { usePetPhysics } from '../hooks/use-pet-physics'
 import { usePlaygroundPrefs } from '../hooks/use-playground-prefs'
 import { Slider, Stage, Switch } from './controls'
 import { MediaPlayer } from './media-player'
@@ -82,6 +82,8 @@ const BUBBLE_TITLE = '会话示例'
  * | 声明式动作 | `motion` prop（14 个动作墙） |
  * | 命令式动作 | `useControllablePet` → `pet.motion(...)` / `pet.clear()` |
  * | 拖动 | `useDraggable` + `dragging` prop（dsh → 悬空，Codex → 左右行走） |
+ * | 甩动 / 弹开 | `pet.fling` / `pet.bounce` 请求，playground 宿主积分与移动 |
+ * | 即时几何 | `pet.geometry`（renderer 与 body 的 viewport CSS px） |
  * | 走路素材 | `moving-left` / `moving-right`（dsh 取 `moves` 池，与拖动是两套素材） |
  * | 点击回应 | `<Pet>` 内置双击判定（命中框连按两次即插播 `waving`） |
  * | 缓存 | `cache` prop（资源落 IndexedDB，第二次走本地） |
@@ -110,6 +112,9 @@ export function PetDemo() {
   const [lastCommand, setLastCommand] = useState('—')
   const [mutteringOn, setMutteringOn] = useState(false)
   const [memeOn, setMemeOn] = useState(true)
+  const [autoFling, setAutoFling] = useState(true)
+  const [throwPower, setThrowPower] = useState(1)
+  const [restitution, setRestitution] = useState(0.78)
 
   // 配置回显（与 `Pet` 共用同一份配置缓存，不会重复拉取）
   const { config, loading, error: configError } = useConfig(asset.config)
@@ -162,10 +167,9 @@ export function PetDemo() {
     }, 400)
   }, [pet])
 
-  // 拖动机械部分用库里的 useDraggable；handle 是组件的 hitboxRef（命中框），
-  // 位移阈值 8px / 方向 3px 的判定在 usePetDrag 里按参考实现补。
-  // 双击（点击回应）由 <Pet> 内置判定，这里不再自己接线。
-  const drag = usePetDrag({ containerRef: stageRef })
+  // 拖拽仍用 useDraggable，全局 move/up 采样；飞行只在 playground 宿主里。
+  const physics = usePetPhysics(pet, stageRef, autoFling, throwPower)
+  const { drag, geometry, velocity } = physics
   const { dragging, direction } = drag
   const motion = direction ? { left: 'moving-left', right: 'moving-right' }[direction] as PetRenderMotion : prefs.motion
 
@@ -183,7 +187,10 @@ export function PetDemo() {
               type="button"
               className={`tab${prefs.asset === entry.id ? ' is-active' : ''}`}
               title={entry.hint}
-              onClick={() => update('asset', entry.id)}
+              onClick={() => {
+                physics.reset()
+                update('asset', entry.id)
+              }}
             >
               {entry.label}
             </button>
@@ -211,6 +218,15 @@ export function PetDemo() {
                 onHitboxPointerDown={drag.onHitboxPointerDown}
                 onHitboxPointerUp={drag.onHitboxPointerUp}
                 onHitboxPointerCancel={drag.onHitboxPointerUp}
+                physics={{ throwPower, restitution }}
+                onFling={(event) => {
+                  physics.onPhysics(event)
+                  setLastCommand(`pet.fling({ vx: ${Math.round(event.vx)}, vy: ${Math.round(event.vy)} })`)
+                }}
+                onBounce={(event) => {
+                  physics.onPhysics(event)
+                  setLastCommand(`pet.bounce({ vx: ${Math.round(event.vx)}, vy: ${Math.round(event.vy)} })`)
+                }}
                 muttering={mutteringOn}
                 mutteringImage={memeOn}
                 mutteringIntervalSec={300}
@@ -292,6 +308,23 @@ export function PetDemo() {
               </dd>
             </div>
             <div>
+              <dt>宿主飞行 · CSS px/s</dt>
+              <dd>
+                <code>{physics.flying ? '飞行中' : '已停止'}</code>
+                <code>{`vx ${Math.round(velocity.vx)}, vy ${Math.round(velocity.vy)}`}</code>
+              </dd>
+            </div>
+            <div>
+              <dt>pet.geometry · viewport CSS px</dt>
+              <dd>
+                <code>{geometry === null ? '暂无布局' : `x ${Math.round(geometry.x)}, y ${Math.round(geometry.y)}`}</code>
+                {geometry !== null && <code>{`width ${Math.round(geometry.width)}, height ${Math.round(geometry.height)}`}</code>}
+                {geometry !== null && (
+                  <code>{`body [${[geometry.body.left, geometry.body.top, geometry.body.right, geometry.body.bottom].map(Math.round).join(', ')}]`}</code>
+                )}
+              </dd>
+            </div>
+            <div>
               <dt>look 格</dt>
               <dd><code>{isCodex ? (look ?? '—') : '仅 Codex v2'}</code></dd>
             </div>
@@ -323,6 +356,29 @@ export function PetDemo() {
               <dd>{status}</dd>
             </div>
           </dl>
+
+          <div className="motion-bar">
+            <p className="motion-bar__title">物理接口 · pet.fling / pet.bounce</p>
+            <div className="actions actions--wrap">
+              <button type="button" className="btn" title="pet.fling({ vx: 1100, vy: -700 })" onClick={() => pet.fling({ vx: 1100, vy: -700 })}>
+                向右上甩出
+              </button>
+              <button type="button" className="btn" title="pet.bounce({ vx: -900, vy: -500 })：替换速度，不叠加" onClick={() => pet.bounce({ vx: -900, vy: -500 })}>
+                模拟碰撞弹开
+              </button>
+              <button type="button" className="btn" onClick={physics.stop}>停止飞行</button>
+            </div>
+            <div className="controls">
+              <Switch label="拖动松手甩出" checked={autoFling} onChange={setAutoFling} hint="快拖后松手才甩出；单击、慢拖、停顿和取消手势不会甩出" />
+              <Slider label="松手甩动增益" value={throwPower} min={0.2} max={2} step={0.1} onChange={setThrowPower} />
+              <Slider label="边界回弹系数" value={restitution} min={0} max={0.95} step={0.05} onChange={setRestitution} />
+            </div>
+            <p className="hint">
+              快拖身体后松手，或点按钮。组件只通知宿主，舞台宿主负责重力、边界回弹和停止；
+              「模拟碰撞」直接给出解算后的替换速度，不是双宠碰撞引擎。增益只用于松手估速，按钮速度原样传入。
+              几何每 100ms 回读；物理控件不持久化，参数在下一次甩出/弹开时生效。
+            </p>
+          </div>
 
           <div className="motion-bar">
             {MOTION_GROUPS.map(group => (
@@ -532,13 +588,28 @@ export function PetDemo() {
               min={80}
               max={520}
               suffix="px"
-              onChange={value => update('sizes', { ...prefs.sizes, [prefs.asset]: value })}
+              onChange={(value) => {
+                physics.stop()
+                update('sizes', { ...prefs.sizes, [prefs.asset]: value })
+              }}
             />
           </div>
 
           <div className="actions">
-            <button type="button" className="btn" onClick={drag.reset}>复位位置</button>
-            <button type="button" className="btn" onClick={reset}>重置面板</button>
+            <button type="button" className="btn" onClick={physics.reset}>复位位置</button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                physics.reset()
+                setAutoFling(true)
+                setThrowPower(1)
+                setRestitution(0.78)
+                reset()
+              }}
+            >
+              重置面板
+            </button>
           </div>
 
         </div>
