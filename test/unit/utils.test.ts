@@ -1,3 +1,4 @@
+import type { ConfigCacheStore } from '../../src/utils/fetch'
 import { useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -7,7 +8,16 @@ import {
   resolveAssetUrl,
   resolvePlatformValue,
 } from '../../src/utils/env'
-import { clearConfigCache, fetchText, loadConfig } from '../../src/utils/fetch'
+import {
+  clearConfigCache,
+  CONFIG_CACHE_INDEX_KEY,
+  CONFIG_CACHE_LIMIT,
+  CONFIG_CACHE_PREFIX,
+  fetchText,
+  loadConfig,
+  readCachedConfig,
+  writeCachedConfig,
+} from '../../src/utils/fetch'
 import { createSeededRandom } from '../../src/utils/random'
 import { useIsomorphicLayoutEffect } from '../../src/utils/react'
 
@@ -246,6 +256,150 @@ describe('fetch：配置拉取', () => {
     clearConfigCache()
     expect(loadConfig(dataUrl(JSON.stringify({ tag: 'clear-all-1' })))).not.toBe(first)
     expect(loadConfig(dataUrl(JSON.stringify({ tag: 'clear-all-2' })))).not.toBe(second)
+  })
+
+  it('没有 IndexedDB 的环境（Node / SSR）持久化层整体空转，加载照常', async () => {
+    const config = { size: 3, tag: 'no-idb' }
+    await expect(loadConfig<typeof config>(dataUrl(JSON.stringify(config)))).resolves.toEqual(config)
+  })
+})
+
+describe('fetch：配置持久化缓存', () => {
+  /** 内存版持久化层（Node 里没有 IndexedDB，用注入的 store 覆盖离线分支）。 */
+  function memoryStore() {
+    const store = new Map<string, unknown>()
+    const cacheStore: ConfigCacheStore = {
+      // `get` 是泛型方法，`vi.fn` 会把签名擦成非泛型，这里直接给实现即可
+      get: async <T>(key: string) => store.get(key) as T | undefined,
+      set: vi.fn(async (key: string, value: unknown) => {
+        store.set(key, value)
+      }),
+      del: vi.fn(async (key: string) => {
+        store.delete(key)
+      }),
+    }
+    return { store, cacheStore }
+  }
+
+  beforeEach(() => {
+    clearConfigCache()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    clearConfigCache()
+  })
+
+  it('网络失败时回落到持久化副本，加载仍然成功（断网仍能显示宠物）', async () => {
+    const url = 'https://cdn.example/pet/config.jsonc'
+    const { store, cacheStore } = memoryStore()
+    store.set(`${CONFIG_CACHE_PREFIX}${url}`, { url, config: { size: 220, tag: 'cached' }, cachedAt: 1_700_000_000_000 })
+
+    // 断网：任何请求都直接失败（等价于 DNS 失败 / 代理黑洞）
+    const failing = vi.fn(async () => {
+      throw new TypeError('Failed to fetch')
+    })
+    vi.stubGlobal('fetch', failing)
+
+    await expect(loadConfig<{ size: number, tag: string }>(url, { store: cacheStore }))
+      .resolves
+      .toEqual({ size: 220, tag: 'cached' })
+    expect(failing).toHaveBeenCalledTimes(1)
+  })
+
+  it('网络成功时把正文写进持久化层（下次断网才有得回落）', async () => {
+    const url = 'https://cdn.example/pet/online.jsonc'
+    const { store, cacheStore } = memoryStore()
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ size: 1, tag: 'online' }), { status: 200 })))
+
+    await expect(loadConfig<{ size: number, tag: string }>(url, { store: cacheStore }))
+      .resolves
+      .toEqual({ size: 1, tag: 'online' })
+    expect(store.get(`${CONFIG_CACHE_PREFIX}${url}`)).toMatchObject({ url, config: { size: 1, tag: 'online' } })
+    expect(store.get(CONFIG_CACHE_INDEX_KEY)).toEqual([url])
+  })
+
+  it('网络失败且没有持久化副本：按原样失败并清掉内存缓存（允许重试）', async () => {
+    const url = 'https://cdn.example/pet/missing.jsonc'
+    const { store, cacheStore } = memoryStore()
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new TypeError('Failed to fetch')
+    }))
+
+    const first = loadConfig(url, { store: cacheStore })
+    await expect(first).rejects.toThrow('Failed to fetch')
+    expect(store.has(`${CONFIG_CACHE_PREFIX}${url}`)).toBe(false)
+
+    const retry = loadConfig(url, { store: cacheStore })
+    expect(retry).not.toBe(first)
+    await expect(retry).rejects.toThrow('Failed to fetch')
+  })
+
+  it('持久化副本与地址对不上时不算命中（不串台）', async () => {
+    const url = 'https://cdn.example/pet/other.jsonc'
+    const { store, cacheStore } = memoryStore()
+    store.set(`${CONFIG_CACHE_PREFIX}${url}`, { url: 'https://cdn.example/pet/OLD.jsonc', config: { tag: 'stale' } })
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new TypeError('Failed to fetch')
+    }))
+
+    await expect(loadConfig(url, { store: cacheStore })).rejects.toThrow('Failed to fetch')
+  })
+
+  it('存储抛错只降级为无缓存，不把加载打死', async () => {
+    const url = 'https://cdn.example/pet/flaky.jsonc'
+    const cacheStore: ConfigCacheStore = {
+      get: vi.fn(async () => {
+        throw new Error('IndexedDB blocked')
+      }),
+      set: vi.fn(async () => {
+        throw new Error('IndexedDB blocked')
+      }),
+      del: vi.fn(async () => {
+        throw new Error('IndexedDB blocked')
+      }),
+    }
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ tag: 'still-works' }), { status: 200 })))
+
+    await expect(loadConfig<{ tag: string }>(url, { store: cacheStore })).resolves.toEqual({ tag: 'still-works' })
+  })
+
+  it('writeCachedConfig 超出上限时淘汰最旧地址（连同正文一起删）', async () => {
+    const { store, cacheStore } = memoryStore()
+    const urls = Array.from({ length: CONFIG_CACHE_LIMIT + 1 }, (_, index) => `https://cdn.example/pet/${index}.jsonc`)
+    for (const url of urls)
+      await writeCachedConfig(url, { url }, cacheStore)
+
+    expect(store.get(CONFIG_CACHE_INDEX_KEY)).toHaveLength(CONFIG_CACHE_LIMIT)
+    expect(store.get(CONFIG_CACHE_INDEX_KEY)).toEqual([...urls].reverse().slice(0, CONFIG_CACHE_LIMIT))
+    // 最旧的一条被淘汰
+    expect(store.has(`${CONFIG_CACHE_PREFIX}${urls[0]}`)).toBe(false)
+    // 最新的一条还在
+    await expect(readCachedConfig(urls[urls.length - 1]!, cacheStore)).resolves.toEqual({ url: urls[urls.length - 1] })
+  })
+
+  it('重复写入同一地址不产生重复索引', async () => {
+    const url = 'https://cdn.example/pet/same.jsonc'
+    const { store, cacheStore } = memoryStore()
+    await writeCachedConfig(url, { v: 1 }, cacheStore)
+    await writeCachedConfig(url, { v: 2 }, cacheStore)
+
+    expect(store.get(CONFIG_CACHE_INDEX_KEY)).toEqual([url])
+    await expect(readCachedConfig(url, cacheStore)).resolves.toEqual({ v: 2 })
+  })
+
+  it('clearConfigCache(url) 连持久化副本一起清掉（热更新不会读回旧副本）', async () => {
+    const url = 'https://cdn.example/pet/hot.jsonc'
+    const { store, cacheStore } = memoryStore()
+    await writeCachedConfig(url, { tag: 'old' }, cacheStore)
+    store.set(CONFIG_CACHE_INDEX_KEY, [url])
+
+    clearConfigCache(url, cacheStore)
+    // 持久化清理是异步的（不阻塞调用方），等它落地
+    await vi.waitFor(() => {
+      expect(store.has(`${CONFIG_CACHE_PREFIX}${url}`)).toBe(false)
+      expect(store.get(CONFIG_CACHE_INDEX_KEY)).toEqual([])
+    })
   })
 })
 
