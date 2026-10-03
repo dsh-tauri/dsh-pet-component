@@ -374,6 +374,9 @@ export function Pet(props: PetProps) {
     { interrupted: common.dragging === true },
   )
 
+  // 松手监听只依赖稳定的 reset，不能随按下后的双击窗口变化而重绑/漏掉 pointerup。
+  const resetDoubleClick = onDoubleClick.reset
+
   // 全局收尾：指针离开 hitbox 后松开也能结束；取消/拖动/右键不产生点击挤压。
   const pressRef = useRef<{ id: number, x: number, y: number, moved: boolean } | null>(null)
   useEffect(() => {
@@ -381,7 +384,7 @@ export function Pet(props: PetProps) {
       const press = pressRef.current
       if (press?.id === event.pointerId && Math.hypot(event.clientX - press.x, event.clientY - press.y) >= 5) {
         press.moved = true
-        onDoubleClick.reset()
+        resetDoubleClick()
       }
     }
     const end = (event: PointerEvent) => {
@@ -390,7 +393,7 @@ export function Pet(props: PetProps) {
         return
       pressRef.current = null
       if (event.type === 'pointercancel') {
-        onDoubleClick.reset()
+        resetDoubleClick()
         stopSquash()
       }
       if (event.type === 'pointerup' && !press.moved && !common.dragging
@@ -400,7 +403,7 @@ export function Pet(props: PetProps) {
     }
     const abort = () => {
       pressRef.current = null
-      onDoubleClick.reset()
+      resetDoubleClick()
       stopSquash()
     }
     const lost = (event: PointerEvent) => {
@@ -419,7 +422,7 @@ export function Pet(props: PetProps) {
       window.removeEventListener('pointerup', end, true)
       window.removeEventListener('pointercancel', end, true)
     }
-  }, [common.dragging, onDoubleClick, squash, stopSquash])
+  }, [common.dragging, resetDoubleClick, squash, stopSquash])
 
   const onHitboxPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button === 0 && event.isPrimary !== false
