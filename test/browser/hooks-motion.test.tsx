@@ -452,6 +452,8 @@ function makeFakePet(current: PetRenderMotion = 'thinking'): FakePet {
     clear,
     fling,
     bounce,
+    squash: vi.fn(),
+    stopSquash: vi.fn(),
     geometry: null,
     get current() {
       return current
@@ -481,6 +483,10 @@ describe('useControllablePet', () => {
     view.result.current.bounce({ vx: 0, vy: 0 })
     expect(fake.bounce).toHaveBeenCalledWith({ vx: 0, vy: 0 })
     expect(view.result.current.geometry).toBeNull()
+    view.result.current.squash(900)
+    expect(fake.pet.squash).toHaveBeenCalledWith(900)
+    view.result.current.stopSquash()
+    expect(fake.pet.stopSquash).toHaveBeenCalledTimes(1)
   })
 
   it('气泡命令转发：调用 + close / clear', async () => {
@@ -524,6 +530,8 @@ describe('useControllablePet', () => {
     expect(view.result.current.geometry).toBeNull()
     expect(() => view.result.current.fling({ vx: 1, vy: 2 })).not.toThrow()
     expect(() => view.result.current.bounce({ vx: 1, vy: 2 })).not.toThrow()
+    expect(() => view.result.current.squash()).not.toThrow()
+    expect(() => view.result.current.stopSquash()).not.toThrow()
     expect(view.result.current.bubble({ title: 'x' })).toBe('')
     expect(() => view.result.current.bubble.close()).not.toThrow()
     expect(() => view.result.current.bubble.clear()).not.toThrow()
@@ -538,6 +546,8 @@ describe('useControllablePet', () => {
     expect(view.result.current.geometry).toBeNull()
     expect(() => view.result.current.fling({ vx: 1, vy: 2 })).not.toThrow()
     expect(() => view.result.current.bounce({ vx: 1, vy: 2 })).not.toThrow()
+    expect(() => view.result.current.squash()).not.toThrow()
+    expect(() => view.result.current.stopSquash()).not.toThrow()
     expect(view.result.current.bubble({ title: 'x' })).toBe('')
     expect(() => view.result.current.motion('idle')).not.toThrow()
     expect(() => view.result.current.muttering.request()).not.toThrow()

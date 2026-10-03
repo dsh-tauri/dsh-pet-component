@@ -1,10 +1,11 @@
 import type { MotionInput, PetAnimationInfo, PetBubbleOptions, PetMutteringEvent, PetRef, PetRenderMotion } from 'dsh-pet-component'
+import { useRafFn } from '@reause/core'
 import {
   Pet,
   useConfig,
   useControllablePet,
 } from 'dsh-pet-component'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   MOTION_GROUPS,
   motionLabel,
@@ -12,6 +13,7 @@ import {
 import { useDomAttribute } from '../hooks/use-dom-attribute'
 import { usePetPhysics } from '../hooks/use-pet-physics'
 import { usePlaygroundPrefs } from '../hooks/use-playground-prefs'
+import { collidePets } from '../physics'
 import { Slider, Stage, Switch } from './controls'
 import { MediaPlayer } from './media-player'
 
@@ -74,14 +76,14 @@ const BUBBLE_DEMO_ID = 'demo'
 const BUBBLE_TITLE = '会话示例'
 
 /**
- * 桌宠组件的唯一演示 —— **只用一个 `<Pet>`**，全部能力都在这一个组件里：
+ * 桌宠组件的统一演示 —— 默认一个 `<Pet>`，启用双宠碰撞时再挂载一只：
  *
  * | 能力 | 用到的 API |
  * | --- | --- |
  * | 换协议 | 切换 `config` / `uri` 素材，`Pet` 自动判定 `DshPet` / `CodexPet` |
  * | 声明式动作 | `motion` prop（14 个动作墙） |
  * | 命令式动作 | `useControllablePet` → `pet.motion(...)` / `pet.clear()` |
- * | 拖动 | `useDraggable` + `dragging` prop（dsh → 悬空，Codex → 左右行走） |
+ * | 拖动 | 宿主弹簧跟手 + `dragging` prop（dsh → 悬空，Codex → 左右行走） |
  * | 甩动 / 弹开 | `pet.fling` / `pet.bounce` 请求，playground 宿主积分与移动 |
  * | 即时几何 | `pet.geometry`（renderer 与 body 的 viewport CSS px） |
  * | 走路素材 | `moving-left` / `moving-right`（dsh 取 `moves` 池，与拖动是两套素材） |
@@ -115,6 +117,10 @@ export function PetDemo() {
   const [autoFling, setAutoFling] = useState(true)
   const [throwPower, setThrowPower] = useState(1)
   const [restitution, setRestitution] = useState(0.78)
+  const [petCollision, setPetCollision] = useState(false)
+  const [collisions, setCollisions] = useState(0)
+  const otherRef = useRef<PetRef>(null)
+  const otherPet = useControllablePet(otherRef)
 
   // 配置回显（与 `Pet` 共用同一份配置缓存，不会重复拉取）
   const { config, loading, error: configError } = useConfig(asset.config)
@@ -167,10 +173,33 @@ export function PetDemo() {
     }, 400)
   }, [pet])
 
-  // 拖拽仍用 useDraggable，全局 move/up 采样；飞行只在 playground 宿主里。
+  // 弹簧跟手与全局指针采样、飞行和 arena 都只在 playground 宿主里。
   const physics = usePetPhysics(pet, stageRef, autoFling, throwPower)
   const { drag, geometry, velocity } = physics
+  const other = usePetPhysics(otherPet, stageRef, autoFling, throwPower)
   const { dragging, direction } = drag
+  const resetOther = other.reset
+  const placeOther = other.drag.setPosition
+  useEffect(() => {
+    resetOther()
+    if (petCollision && stageRef.current)
+      placeOther({ x: Math.max(0, stageRef.current.clientWidth * 0.55), y: 0 })
+  }, [petCollision, prefs.asset, placeOther, resetOther])
+  useRafFn(() => {
+    if (!petCollision || (!physics.flying && !other.flying))
+      return
+    const a = pet.geometry
+    const b = otherPet.geometry
+    if (!a || !b)
+      return
+    const hit = collidePets({ geometry: a, velocity: physics.getVelocity() }, { geometry: b, velocity: other.getVelocity() })
+    if (!hit)
+      return
+    // 每帧解一次，分离速度下一帧自然跳过；双方命令都是最终替换速度。
+    pet.bounce(hit.a)
+    otherPet.bounce(hit.b)
+    setCollisions(count => count + 1)
+  })
   const motion = direction ? { left: 'moving-left', right: 'moving-right' }[direction] as PetRenderMotion : prefs.motion
 
   /* -------------------------------- 播放目标 -------------------------------- */
@@ -189,6 +218,7 @@ export function PetDemo() {
               title={entry.hint}
               onClick={() => {
                 physics.reset()
+                other.reset()
                 update('asset', entry.id)
               }}
             >
@@ -218,7 +248,7 @@ export function PetDemo() {
                 onHitboxPointerDown={drag.onHitboxPointerDown}
                 onHitboxPointerUp={drag.onHitboxPointerUp}
                 onHitboxPointerCancel={drag.onHitboxPointerUp}
-                physics={{ throwPower, restitution }}
+                physics={{ throwPower, restitution, petCollision }}
                 onFling={(event) => {
                   physics.onPhysics(event)
                   setLastCommand(`pet.fling({ vx: ${Math.round(event.vx)}, vy: ${Math.round(event.vy)} })`)
@@ -237,6 +267,24 @@ export function PetDemo() {
                 onError={(cause: unknown) => setStatus(`出错：${cause instanceof Error ? cause.message : String(cause)}`)}
               />
             </div>
+            {petCollision && (
+              <div ref={other.drag.boxRef} className="stage__pet" data-collision-pet style={{ left: other.drag.x, top: other.drag.y }}>
+                <Pet
+                  ref={otherRef}
+                  config={asset.config}
+                  uri={asset.uri}
+                  ext={asset.ext}
+                  size={size * 0.75}
+                  cache={prefs.cache}
+                  mirrored={!prefs.mirrored}
+                  dragging={other.drag.dragging}
+                  hitboxRef={other.drag.handleRef}
+                  physics={{ throwPower, restitution, petCollision }}
+                  onFling={other.onPhysics}
+                  onBounce={other.onPhysics}
+                />
+              </div>
+            )}
           </Stage>
           <p className="hint">
             拖动区是组件内部的
@@ -260,10 +308,10 @@ export function PetDemo() {
           />
 
           <p className="hint">
-            整页只有一个
+            默认只有一个
             {' '}
             <code>&lt;Pet&gt;</code>
-            ：换素材就换协议，`DshPet` / `CodexPet` 由它内部按配置选。
+            ，启用双宠碰撞时增加一只；换素材就换协议，`DshPet` / `CodexPet` 由它内部按配置选。
             面板上的开关用
             {' '}
             <code>useLocalStorage</code>
@@ -366,16 +414,28 @@ export function PetDemo() {
               <button type="button" className="btn" title="pet.bounce({ vx: -900, vy: -500 })：替换速度，不叠加" onClick={() => pet.bounce({ vx: -900, vy: -500 })}>
                 模拟碰撞弹开
               </button>
-              <button type="button" className="btn" onClick={physics.stop}>停止飞行</button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  physics.stop()
+                  other.stop()
+                }}
+              >
+                停止飞行
+              </button>
+              <button type="button" className="btn" onClick={() => pet.squash()}>挤压回弹</button>
             </div>
             <div className="controls">
               <Switch label="拖动松手甩出" checked={autoFling} onChange={setAutoFling} hint="快拖后松手才甩出；单击、慢拖、停顿和取消手势不会甩出" />
+              <Switch label={`双宠实际碰撞（已解算 ${collisions} 次）`} checked={petCollision} onChange={setPetCollision} hint="身体 AABB 接触解算、质量按尺寸平方，双方以最终速度弹开；关闭移除第二只" />
               <Slider label="松手甩动增益" value={throwPower} min={0.2} max={2} step={0.1} onChange={setThrowPower} />
               <Slider label="边界回弹系数" value={restitution} min={0} max={0.95} step={0.05} onChange={setRestitution} />
             </div>
             <p className="hint">
               快拖身体后松手，或点按钮。组件只通知宿主，舞台宿主负责重力、边界回弹和停止；
-              「模拟碰撞」直接给出解算后的替换速度，不是双宠碰撞引擎。增益只用于松手估速，按钮速度原样传入。
+              「模拟碰撞」直接注入替换速度；启用双宠可体验真实身体接触、双方速度解算。
+              松手增益也调整弹簧跟手力度，按钮速度原样传入；点击与落地会挤压回弹，减少动态效果时跳过。
               几何每 100ms 回读；物理控件不持久化，参数在下一次甩出/弹开时生效。
             </p>
           </div>
@@ -596,15 +656,28 @@ export function PetDemo() {
           </div>
 
           <div className="actions">
-            <button type="button" className="btn" onClick={physics.reset}>复位位置</button>
             <button
               type="button"
               className="btn"
               onClick={() => {
                 physics.reset()
+                other.reset()
+                setCollisions(0)
+              }}
+            >
+              复位位置
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                physics.reset()
+                other.reset()
                 setAutoFling(true)
                 setThrowPower(1)
                 setRestitution(0.78)
+                setPetCollision(false)
+                setCollisions(0)
                 reset()
               }}
             >

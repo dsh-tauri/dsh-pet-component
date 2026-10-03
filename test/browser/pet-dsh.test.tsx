@@ -481,9 +481,10 @@ describe('内置交互与插播通道', () => {
     await waitForPlaying(container, `${PET_MEDIA_DIR}/idle.webm`)
 
     const hitbox = query(container, '.dsh-pet__hitbox')
-    hitbox.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+    hitbox.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, isPrimary: true }))
+    window.dispatchEvent(new PointerEvent('pointerup', { isPrimary: true }))
     await nextFrames(1)
-    hitbox.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+    hitbox.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, isPrimary: true }))
 
     await vi.waitFor(() => expect(motionOf(container)).toBe('waving'), { timeout: 5000 })
     expect(animationOf(container)).toBe('idle')

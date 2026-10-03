@@ -283,6 +283,14 @@ export interface PetRef {
   fling: (velocity: PetVelocity) => void
   /** 碰撞弹开：以解算后的最终绝对速度替换旧速度，不叠加；空操作条件同 fling。 */
   bounce: (velocity: PetVelocity) => void
+  /**
+   * 媒体 Q 弹：省略参数为点击力度；传入落地冲击速度 CSS px/s，力度按上游映射。
+   * 220ms、底部锚定；不改变 hitbox/几何/位置/Motion，减少动态效果/拖拽时跳过。
+   * 新调用替换旧效果，非法速度/未挂载为空操作。
+   */
+  squash: (impactSpeed?: number) => void
+  /** 取消 Q 弹并恢复纯媒体镜像；抓取/卸载也会自动取消。 */
+  stopSquash: () => void
   /** 每读一次即时测量 renderer + hitbox；未挂载/无布局为 null，visibility:hidden 仍有布局。 */
   readonly geometry: PetGeometry | null
   /**

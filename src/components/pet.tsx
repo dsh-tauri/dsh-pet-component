@@ -2,13 +2,15 @@ import type { CSSProperties, PointerEvent as ReactPointerEvent, Ref, RefObject }
 import type { CodexPetConfig, DshPetConfig, MotionInput, PetBubble, PetBubbleHandle, PetConfig, PetGeometry, PetPhysicsEvent, PetProps, PetRef, PetVelocity } from '../types'
 import { useElementSize } from '@reause/core'
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { detectPetKind, dshEventPool, resolveMutteringPlan, resolvePhysics, selectPetEntry } from '../config'
+import { detectPetKind, dshEventPool, PET_DEFAULT_EXT, resolveMutteringPlan, resolvePhysics, selectPetEntry } from '../config'
 import { useConfig } from '../hooks/use-config'
 import { useControllablePet } from '../hooks/use-controllable-pet'
 import { useDoubleClick } from '../hooks/use-double-click'
 import { useMuttering } from '../hooks/use-muttering'
 import { usePetBubbles } from '../hooks/use-pet-bubbles'
+import { usePetSquash } from '../hooks/use-pet-squash'
 import { motionKey } from '../utils/bubble'
+import { resolveAssetUrl, resolvePlatformValue, resolveSpritesheetUrl } from '../utils/env'
 import { PetBubbleLayer } from './bubble-layer'
 import { CodexPet } from './codex-pet'
 import { DshPet } from './dsh-pet'
@@ -121,6 +123,7 @@ export function Pet(props: PetProps) {
   const motionRef = useRef<PetRef | null>(null)
   const mergedRef = useMergedRef(ref, innerRef)
   const pet = useControllablePet(innerRef)
+  const { squash, stopSquash } = usePetSquash(shellRef, common.dragging === true)
 
   useEffect(() => {
     if (error !== null)
@@ -130,6 +133,18 @@ export function Pet(props: PetProps) {
   // 地址形态的配置还在路上时，先用原始 source 交给子渲染器（配置缓存会去重，不会重复拉）
   const resolved = loaded ?? config
   const resolvedKind = kind ?? detectPetKind(loaded, uri)
+  // 使用实际资源的标量地址；等价的内联配置/平台映射重建不能截断 220ms 反馈。
+  // 动作换帧/视频切换沿用反馈，仅换素材基址/扩展名、渲染器或隐藏才取消。
+  const mediaSource = resolvedKind === 'codex'
+    ? resolveSpritesheetUrl(typeof uri === 'string' ? uri : uri?.default, resolved, loaded as CodexPetConfig | null)
+    : resolveAssetUrl(
+        typeof uri === 'string' ? uri : resolvePlatformValue(uri ?? { default: '' }),
+        '__pet_source__',
+        resolvePlatformValue(ext ?? PET_DEFAULT_EXT),
+      )
+  useEffect(() => {
+    stopSquash()
+  }, [resolvedKind, mediaSource, common.hidden, stopSquash])
   // 碎碎念与配图是 dsh-pet 协议的字段（Codex 图集没有 whisper 行）
   const dshConfig = loaded !== null && resolvedKind === 'dsh' ? loaded as DshPetConfig : null
   const petEntry = useMemo(() => (dshConfig === null ? null : selectPetEntry(dshConfig)), [dshConfig])
@@ -339,12 +354,14 @@ export function Pet(props: PetProps) {
     },
     fling: velocity => requestPhysics(onFling, velocity),
     bounce: velocity => requestPhysics(onBounce, velocity),
+    squash,
+    stopSquash,
     get geometry() {
       return readGeometry()
     },
     bubble: bubbleHandle,
     muttering: mutteringHandle,
-  }), [bubbleHandle, motionClear, motionRequest, mutteringHandle, onBounce, onFling, readGeometry, requestPhysics])
+  }), [bubbleHandle, motionClear, motionRequest, mutteringHandle, onBounce, onFling, readGeometry, requestPhysics, squash, stopSquash])
 
   useImperativeHandle(mergedRef, () => handle, [handle])
 
@@ -357,9 +374,60 @@ export function Pet(props: PetProps) {
     { interrupted: common.dragging === true },
   )
 
-  // 内置判定只做叠加：先判双击，再把原生指针事件原样透传给宿主的回调
+  // 全局收尾：指针离开 hitbox 后松开也能结束；取消/拖动/右键不产生点击挤压。
+  const pressRef = useRef<{ id: number, x: number, y: number, moved: boolean } | null>(null)
+  useEffect(() => {
+    const move = (event: PointerEvent) => {
+      const press = pressRef.current
+      if (press?.id === event.pointerId && Math.hypot(event.clientX - press.x, event.clientY - press.y) >= 5) {
+        press.moved = true
+        onDoubleClick.reset()
+      }
+    }
+    const end = (event: PointerEvent) => {
+      const press = pressRef.current
+      if (press?.id !== event.pointerId)
+        return
+      pressRef.current = null
+      if (event.type === 'pointercancel') {
+        onDoubleClick.reset()
+        stopSquash()
+      }
+      if (event.type === 'pointerup' && !press.moved && !common.dragging
+        && Math.hypot(event.clientX - press.x, event.clientY - press.y) < 5) {
+        squash()
+      }
+    }
+    const abort = () => {
+      pressRef.current = null
+      onDoubleClick.reset()
+      stopSquash()
+    }
+    const lost = (event: PointerEvent) => {
+      if (pressRef.current?.id === event.pointerId)
+        abort()
+    }
+    window.addEventListener('blur', abort)
+    window.addEventListener('lostpointercapture', lost)
+    window.addEventListener('pointermove', move, true)
+    window.addEventListener('pointerup', end, true)
+    window.addEventListener('pointercancel', end, true)
+    return () => {
+      window.removeEventListener('blur', abort)
+      window.removeEventListener('lostpointercapture', lost)
+      window.removeEventListener('pointermove', move, true)
+      window.removeEventListener('pointerup', end, true)
+      window.removeEventListener('pointercancel', end, true)
+    }
+  }, [common.dragging, onDoubleClick, squash, stopSquash])
+
   const onHitboxPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    onDoubleClick()
+    if (event.button === 0 && event.isPrimary !== false
+      && (pressRef.current === null || pressRef.current.id === event.pointerId)) {
+      stopSquash()
+      pressRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false }
+      onDoubleClick()
+    }
     common.onHitboxPointerDown?.(event)
   }
 

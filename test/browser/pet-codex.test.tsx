@@ -304,7 +304,7 @@ describe('命中框指针行为', () => {
     }))
     const hitbox = query(container, '.dsh-pet__hitbox')
 
-    hitbox.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+    hitbox.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, isPrimary: true }))
     hitbox.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }))
     hitbox.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true }))
 
@@ -319,11 +319,11 @@ describe('命中框指针行为', () => {
     const root = query(container, '.dsh-pet')
     const hitbox = query(container, '.dsh-pet__hitbox')
 
-    hitbox.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+    hitbox.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, isPrimary: true }))
     await nextFrames()
     expect(root.dataset.motion).toBe('idle')
 
-    hitbox.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+    hitbox.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, isPrimary: true }))
     await vi.waitFor(() => {
       expect(root.dataset.motion).toBe('waving')
     })

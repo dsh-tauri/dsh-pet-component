@@ -1,5 +1,5 @@
 import { useStateAutoReset } from '@reause/core'
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 
 /**
  * 双击判定窗口 ms —— 与 dsh-pet / `deepseek-harness-desktop` 的 `DOUBLE_CLICK_MS` 同量级。
@@ -27,7 +27,7 @@ export interface UseDoubleClickOptions {
  * const onDoubleClick = useDoubleClick(() => pet.motion({ type: 'waving', replay: true }))
  * ```
  */
-export function useDoubleClick(onDoubleClick: () => void, options: UseDoubleClickOptions = {}): () => void {
+export function useDoubleClick(onDoubleClick: () => void, options: UseDoubleClickOptions = {}): (() => void) & { reset: () => void } {
   const { window = DOUBLE_CLICK_MS, interrupted = false } = options
   const [armed, setArmed] = useStateAutoReset(false, window)
 
@@ -37,7 +37,8 @@ export function useDoubleClick(onDoubleClick: () => void, options: UseDoubleClic
       setArmed(false)
   }, [interrupted, setArmed])
 
-  return useCallback(() => {
+  const reset = useCallback(() => setArmed(false), [setArmed])
+  const press = useCallback(() => {
     if (!armed) {
       setArmed(true) // 第一次按下：开窗等第二下
       return
@@ -45,4 +46,5 @@ export function useDoubleClick(onDoubleClick: () => void, options: UseDoubleClic
     setArmed(false)
     onDoubleClick()
   }, [armed, onDoubleClick, setArmed])
+  return useMemo(() => Object.assign(press, { reset }), [press, reset])
 }

@@ -3,7 +3,7 @@ import type { RefObject } from 'react'
 import type { DragSample, ThrowState } from '../physics'
 import { useRafFn } from '@reause/core'
 import { useCallback, useRef, useState } from 'react'
-import { estimateReleaseVelocity, stepThrow } from '../physics'
+import { bodyBounds, estimateReleaseVelocity, stepThrow } from '../physics'
 import { usePetDrag } from './use-pet-drag'
 
 /** Playground 宿主：组件只发请求，这里才真正移动；卸载由 useRafFn 清理。 */
@@ -16,9 +16,10 @@ export function usePetPhysics(pet: PetRef, stageRef: RefObject<HTMLDivElement | 
 
   const stop = useCallback(() => {
     flightRef.current = null
+    pet.stopSquash()
     setFlying(false)
     setVelocity({ vx: 0, vy: 0 })
-  }, [])
+  }, [pet])
 
   const onRelease = useCallback((trail: readonly DragSample[], now: number) => {
     if (!autoFling)
@@ -28,11 +29,19 @@ export function usePetPhysics(pet: PetRef, stageRef: RefObject<HTMLDivElement | 
       pet.fling(release)
   }, [autoFling, pet, throwPower])
 
-  const drag = usePetDrag({ containerRef: stageRef, onStart: stop, onRelease })
-  const { boxRef, setPosition, reset: resetDrag } = drag
+  const getBounds = useCallback((box: HTMLDivElement) => {
+    const current = pet.geometry
+    const stage = stageRef.current
+    return current && stage
+      ? bodyBounds(current, stage.clientWidth, stage.clientHeight, Boolean(box.querySelector('.dsh-pet__video')))
+      : null
+  }, [pet, stageRef])
+  const drag = usePetDrag({ containerRef: stageRef, onStart: stop, onRelease, throwPower, getBounds })
+  const { boxRef, setPosition, cancel, reset: resetDrag } = drag
 
   // fling 和 bounce 都用新绝对速度从当前位置重启；不叠加、不再乘 throwPower。
   const onPhysics = useCallback((event: PetPhysicsEvent) => {
+    cancel()
     const box = boxRef.current
     if (box === null || stageRef.current === null)
       return
@@ -43,7 +52,7 @@ export function usePetPhysics(pet: PetRef, stageRef: RefObject<HTMLDivElement | 
     setGeometry(event.geometry)
     setVelocity({ vx: event.vx, vy: event.vy })
     setFlying(true)
-  }, [boxRef, stageRef])
+  }, [boxRef, cancel, stageRef])
 
   useRafFn(({ delta, timestamp }) => {
     const flight = flightRef.current
@@ -56,17 +65,19 @@ export function usePetPhysics(pet: PetRef, stageRef: RefObject<HTMLDivElement | 
         stop()
       }
       else {
-        // ponytail: 单宠 renderer 盒子在舞台内反弹；多宠接触解算需由宿主 arena 实现。
-        const next = stepThrow(flight.state, delta / 1000, {
-          minX: 0,
-          minY: 0,
-          maxX: stage.clientWidth - current.width,
-          maxY: stage.clientHeight - current.height,
-        }, flight.physics)
+        const dsh = Boolean(boxRef.current?.querySelector('.dsh-pet__video'))
+        const bounds = bodyBounds(current, stage.clientWidth, stage.clientHeight, dsh)
+        const next = stepThrow(flight.state, delta / 1000, bounds, flight.physics)
         flight.state = next
         setPosition(next)
-        if (next.atRest)
-          stop()
+        if (next.atRest) {
+          // 自然落定不能取消刚触发的落地反馈。
+          flightRef.current = null
+          setFlying(false)
+          setVelocity({ vx: 0, vy: 0 })
+        }
+        if (next.landed)
+          pet.squash(next.impactSpeed)
       }
     }
     // 运动按帧推进，几何/速度面板每 100ms 回读；包含滚动、尺寸和直接 DOM 移动。
@@ -82,5 +93,6 @@ export function usePetPhysics(pet: PetRef, stageRef: RefObject<HTMLDivElement | 
     resetDrag()
   }, [resetDrag, stop])
 
-  return { drag, geometry, velocity, flying, onPhysics, stop, reset }
+  const getVelocity = useCallback((): PetVelocity => flightRef.current?.state ?? { vx: 0, vy: 0 }, [])
+  return { drag, geometry, velocity, flying, onPhysics, stop, reset, getVelocity }
 }

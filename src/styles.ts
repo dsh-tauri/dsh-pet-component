@@ -46,6 +46,14 @@ const style = c([
     pointerEvents: 'none',
     transformOrigin: 'center',
   }),
+  // 独立媒体层：Q 弹不影响 renderer/hitbox AABB，也不覆盖镜像/雪碧图变换。
+  c('.dsh-pet__visual', {
+    position: 'absolute',
+    inset: '0',
+    pointerEvents: 'none',
+    transformOrigin: 'bottom',
+    transform: 'scaleY(var(--dsh-pet-squash, 1))',
+  }),
   c('.dsh-pet__media--mirrored', {
     transform: 'scaleX(-1)',
   }),

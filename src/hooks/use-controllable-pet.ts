@@ -62,6 +62,12 @@ export function useControllablePet(petRef?: RefObject<PetRef | null>): PetRef {
       bounce(velocity) {
         petRef?.current?.bounce(velocity)
       },
+      squash(impactSpeed) {
+        petRef?.current?.squash(impactSpeed)
+      },
+      stopSquash() {
+        petRef?.current?.stopSquash()
+      },
       get geometry() {
         return petRef?.current?.geometry ?? null
       },

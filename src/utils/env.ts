@@ -1,3 +1,5 @@
+import type { CodexPetConfig, PetConfigSource } from '../types'
+
 /**
  * 平台判定与「按平台取默认值」的小工具。
  *
@@ -67,4 +69,21 @@ export function resolveAssetUrl(base: string, name: string, ext: string): string
     return withoutTrailingSlash
 
   return `${withoutTrailingSlash}/${encodeURIComponent(name)}.${normalizedExt}`
+}
+
+/** 雪碧图地址：显式 uri 优先，否则以配置文件目录解析 spritesheetPath。 */
+export function resolveSpritesheetUrl(
+  uri: string | undefined,
+  source: PetConfigSource,
+  config: CodexPetConfig | null,
+): string | null {
+  if (uri !== undefined && uri !== '')
+    return uri
+  const relative = config?.spritesheetPath
+  if (relative === undefined || relative === '')
+    return null
+  if (typeof source !== 'string')
+    return relative
+  const base = source.replace(/[?#].*$/, '').replace(/\/[^/]*$/, '')
+  return `${base}/${relative.replace(/^\/+/, '')}`
 }
