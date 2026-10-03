@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import type { CodexPetConfig, CodexPetProps, PetAnimationInfo, PetConfigSource, PetRenderMotion } from '../types'
+import type { CodexPetConfig, CodexPetProps, PetAnimationInfo, PetRenderMotion } from '../types'
 import { useEventListener, usePreferredReducedMotion } from '@reause/core'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -20,32 +20,11 @@ import { useConfig } from '../hooks/use-config'
 import { usePetMotion } from '../hooks/use-pet-motion'
 import { useSpritePlayer } from '../hooks/use-sprite-player'
 import { mountPetStyles } from '../styles'
+import { resolveSpritesheetUrl } from '../utils/env'
 import { useIsomorphicLayoutEffect } from '../utils/react'
 
 function joinClassNames(...values: Array<string | false | null | undefined>): string {
   return values.filter(Boolean).join(' ')
-}
-
-/**
- * 雪碧图地址解析：
- * 1. 显式 `uri` 优先；
- * 2. `config.spritesheetPath` + 配置文件所在目录（`pet.json` 的相对路径语义）；
- * 3. 都没有 → 只在对象配置下退化为相对路径。
- */
-function resolveSpritesheetUrl(
-  uri: string | undefined,
-  source: PetConfigSource,
-  config: CodexPetConfig | null,
-): string | null {
-  if (uri !== undefined && uri !== '')
-    return uri
-  const relative = config?.spritesheetPath
-  if (relative === undefined || relative === '')
-    return null
-  if (typeof source !== 'string')
-    return relative
-  const base = source.replace(/[?#].*$/, '').replace(/\/[^/]*$/, '')
-  return `${base}/${relative.replace(/^\/+/, '')}`
 }
 
 /**
@@ -265,7 +244,9 @@ export function CodexPet(props: CodexPetProps) {
       data-look={effectiveLookIndex}
       style={rootStyle}
     >
-      <div ref={spriteRef} className="dsh-pet__sprite" style={spriteStyle} />
+      <div className="dsh-pet__visual">
+        <div ref={spriteRef} className="dsh-pet__sprite" style={spriteStyle} />
+      </div>
       <div
         ref={hitboxRef}
         className="dsh-pet__hitbox"

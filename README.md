@@ -137,6 +137,10 @@ export function App() {
 pet.fling({ vx: 900, vy: -500 })
 pet.bounce({ vx: -300, vy: 100 })
 const box = pet.geometry // 每读一次即时测量；未挂载/无布局时为 null
+// 宿主在空中→地面的接触帧报告积分前冲击速度，不要每个贴地帧重复调用。
+pet.squash(landingVelocityY)
+pet.squash() // 点击力度
+pet.stopSquash() // 主动取消并恢复媒体
 ```
 
 这两个命令只请求对应回调，不改变动作或位置，不自动采样、驱动飞行或检测碰撞。
@@ -157,6 +161,16 @@ const box = pet.geometry // 每读一次即时测量；未挂载/无布局时为
 事件中的参数是独立副本，组件本身不执行这些物理参数。
 宿主可用 `onHitboxPointerDown/Move/Up/Cancel` 采样；要收出框后的 move，请在 down 时自行
 `event.currentTarget.setPointerCapture(event.pointerId)` 或绑定全局事件，组件不接管指针会话。
+
+`squash(impactSpeed?)` 是独立的**视觉反馈**：底部锚定、220ms 纵向挤压再回弹，
+省略速度时压到 0.55；落地速度按上游 300～1500 px/s 映射到 0.8～0.55。
+媒体层与镜像层分离，两种 renderer 都支持；不改变位置、hitbox、几何或 Motion，
+也不会因 `bounce` 自动挤压（上游只对空中→落地触发）。新调用替换旧效果，
+抓取、拖拽、取消、卸载和动态切换“减少动态效果”会恢复纯媒体；非法速度/未挂载为空操作。
+真实左键单击内置挤压反馈；保留既有双击 waving 动作合约，不改成上游单击切换动作。
+挤压覆盖整个媒体层，新前台视频交叉淡入时沿用同一效果，不依赖旧 video 的 loadeddata。
+等价的内联配置/URI 对象重建不截断反馈；实际素材地址/扩展名、渲染器或隐藏状态变化才取消。
+完整逐项核对与刻意保留的宿主差异见 [交互清单](<docs/spec/pet-interactions.md>)。
 
 ### 4. 气泡与碎碎念 (Bubble & Muttering)
 

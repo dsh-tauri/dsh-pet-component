@@ -164,6 +164,8 @@ describe('useConfig', () => {
     try {
       const view = await renderHook(() => useConfig<DshPetConfig>(url))
       expect(view.result.current.loading).toBe(true)
+      // 配置缓存先异步读 IDB：确实进入 fetch 后才测试“拉取途中”卸载。
+      await vi.waitFor(() => expect(globalThis.fetch).toHaveBeenCalled())
 
       await view.unmount()
       release?.()
@@ -190,6 +192,8 @@ describe('useConfig', () => {
     try {
       const view = await renderHook(() => useConfig<DshPetConfig>(url))
       expect(view.result.current.loading).toBe(true)
+      // 配置缓存先异步读 IDB：确实进入 fetch 后才测试“拉取途中”卸载。
+      await vi.waitFor(() => expect(globalThis.fetch).toHaveBeenCalled())
 
       await view.unmount()
       rejectFetch?.()

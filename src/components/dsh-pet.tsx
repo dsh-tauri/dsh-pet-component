@@ -283,24 +283,26 @@ export function DshPet(props: DshPetProps) {
       {/* 双缓冲：前台淡入、后台淡出；两个 video 都常驻 DOM，切换时只换 class 与 src。
           opacity 同时内联一份 —— 万一样式表没能注入（极端 CSP），也不会出现两层视频叠着显示；
           过渡时长与 prefers-reduced-motion 由样式表提供。 */}
-      <video
-        ref={videoARef}
-        className={videoClassName(frontARef)}
-        style={{ opacity: frontARef ? 1 : 0 }}
-        muted
-        playsInline
-        preload="auto"
-        onError={() => onError?.(new Error(`Failed to play pet animation: ${playbackRef.current?.name ?? 'unknown'}`))}
-      />
-      <video
-        ref={videoBRef}
-        className={videoClassName(!frontARef)}
-        style={{ opacity: frontARef ? 0 : 1 }}
-        muted
-        playsInline
-        preload="auto"
-        onError={() => onError?.(new Error(`Failed to play pet animation: ${playbackRef.current?.name ?? 'unknown'}`))}
-      />
+      <div className="dsh-pet__visual">
+        <video
+          ref={videoARef}
+          className={videoClassName(frontARef)}
+          style={{ opacity: frontARef ? 1 : 0 }}
+          muted
+          playsInline
+          preload="auto"
+          onError={() => onError?.(new Error(`Failed to play pet animation: ${playbackRef.current?.name ?? 'unknown'}`))}
+        />
+        <video
+          ref={videoBRef}
+          className={videoClassName(!frontARef)}
+          style={{ opacity: frontARef ? 0 : 1 }}
+          muted
+          playsInline
+          preload="auto"
+          onError={() => onError?.(new Error(`Failed to play pet animation: ${playbackRef.current?.name ?? 'unknown'}`))}
+        />
+      </div>
       <div
         ref={hitboxRef}
         className="dsh-pet__hitbox"

@@ -232,6 +232,8 @@ export interface PetRef {
   readonly current: PetRenderMotion;
   fling: (_: PetVelocity) => void;
   bounce: (_: PetVelocity) => void;
+  squash: (_?: number) => void;
+  stopSquash: () => void;
   readonly geometry: PetGeometry | null;
   bubble: PetBubbleHandle;
   muttering: PetMutteringHandle;
