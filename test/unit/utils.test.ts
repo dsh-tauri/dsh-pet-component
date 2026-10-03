@@ -319,6 +319,33 @@ describe('fetch：配置持久化缓存', () => {
     expect(store.get(CONFIG_CACHE_INDEX_KEY)).toEqual([url])
   })
 
+  it('已有副本时不再干等：网络挂住也按短上限中止并回落副本', async () => {
+    const url = 'https://cdn.example/pet/slow.jsonc'
+    const { store, cacheStore } = memoryStore()
+    store.set(`${CONFIG_CACHE_PREFIX}${url}`, { url, config: { size: 42, tag: 'cached' }, cachedAt: 1_700_000_000_000 })
+
+    // 代理黑洞：请求一直挂着，只有 abort 能让它结束
+    let aborted = false
+    vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => {
+        aborted = true
+        reject(new Error('aborted'))
+      })
+    })))
+
+    vi.useFakeTimers()
+    try {
+      const pending = loadConfig<{ size: number, tag: string }>(url, { store: cacheStore })
+      // 15s 的原上限不该被用到：副本在手时 3s 就中止
+      await vi.advanceTimersByTimeAsync(15_000)
+      await expect(pending).resolves.toEqual({ size: 42, tag: 'cached' })
+      expect(aborted).toBe(true)
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('网络失败且没有持久化副本：按原样失败并清掉内存缓存（允许重试）', async () => {
     const url = 'https://cdn.example/pet/missing.jsonc'
     const { store, cacheStore } = memoryStore()

@@ -34,6 +34,12 @@ const configCache = new Map<string, Promise<unknown>>()
  */
 const CONFIG_FETCH_TIMEOUT_MS = 15_000
 
+/**
+ * 已经有持久化副本时的等待上限。此时网络只决定**新不新**，副本决定**有没有** ——
+ * 拿旧副本先显形远好过让透明窗口空等十几秒，所以这里的取舍偏「早回落」。
+ */
+const CONFIG_REVALIDATE_TIMEOUT_MS = 3_000
+
 /** `fetch` 文本并校验状态码。 */
 export async function fetchText(url: string, init?: RequestInit): Promise<string> {
   const response = await fetch(url, init)
@@ -46,7 +52,7 @@ export async function fetchText(url: string, init?: RequestInit): Promise<string
 export interface LoadConfigOptions {
   /** 持久化层（默认 `idb-keyval`）；注入是为了在无 IndexedDB 的环境里测试离线分支。 */
   store?: ConfigCacheStore
-  /** 一次网络拉取的等待上限（ms），默认 `CONFIG_FETCH_TIMEOUT_MS`。 */
+  /** 一次网络拉取的等待上限（ms），默认见 `CONFIG_FETCH_TIMEOUT_MS` / `CONFIG_REVALIDATE_TIMEOUT_MS`。 */
   timeoutMs?: number
 }
 
@@ -72,22 +78,28 @@ export function loadConfig<T>(source: T | string, options: LoadConfigOptions = {
   if (cached !== undefined)
     return cached as Promise<T>
 
-  const { store, timeoutMs = CONFIG_FETCH_TIMEOUT_MS } = options
+  const { store } = options
 
-  const task = fetchFresh(source, timeoutMs)
-    .then(async (config) => {
+  const task = (async () => {
+    // 先看有没有副本：有的话网络只决定「新不新」，等待上限放宽到 3s
+    const persisted = await readCachedConfig<T>(source, store)
+    const timeoutMs = options.timeoutMs
+      ?? (persisted === null ? CONFIG_FETCH_TIMEOUT_MS : CONFIG_REVALIDATE_TIMEOUT_MS)
+
+    try {
+      const config = await fetchFresh(source, timeoutMs)
       // 先落地持久化副本再 resolve，离线可用性不依赖调用方怎么用这次结果
       await writeCachedConfig(source, config as T, store)
       return config as T
-    })
-    .catch(async (error) => {
+    }
+    catch (error) {
       // 网络不可用（断网 / 代理黑洞 / DNS 失败）：有持久化副本就用副本，加载照常成功
-      const persisted = await readCachedConfig<T>(source, store)
       if (persisted !== null)
         return persisted
       configCache.delete(source)
       throw error
-    })
+    }
+  })()
 
   // 立刻占位，保证同一地址的并发调用只拉一次
   configCache.set(source, task as Promise<unknown>)
