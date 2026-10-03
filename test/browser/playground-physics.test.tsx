@@ -5,6 +5,7 @@ import { del, get, set } from 'idb-keyval'
 import { act, useRef } from 'react'
 import { expect, it, vi } from 'vitest'
 import { render } from 'vitest-browser-react'
+import { userEvent } from 'vitest/browser'
 import { PetDemo } from '../../playground/src/components/demo'
 import { usePetPhysics } from '../../playground/src/hooks/use-pet-physics'
 import { PLAYGROUND_PREFS_KEY } from '../../playground/src/hooks/use-playground-prefs'
@@ -204,6 +205,51 @@ for (const kind of ['dsh', 'codex'] as const) {
   })
 }
 
+for (const kind of ['dsh', 'codex'] as const) {
+  it(`playground ${kind}：原生双击在指针捕获/释放后仍播放 waving`, async () => {
+    const config = kind === 'dsh' ? makeDshConfig({ animations: { clicks: ['success'] } }) : makeCodexConfig()
+    const uri = kind === 'dsh' ? dshUri : makeSpritesheetDataUrl()
+    function Host() {
+      const stageRef = useRef<HTMLDivElement>(null)
+      const petRef = useRef<PetRef>(null)
+      const pet = useControllablePet(petRef)
+      const { drag, onPhysics } = usePetPhysics(pet, stageRef, true, 1)
+      return (
+        <div ref={stageRef} style={{ position: 'relative', width: 500, height: 340 }}>
+          <div ref={drag.boxRef} style={{ position: 'absolute', left: drag.x, top: drag.y }}>
+            <Pet
+              ref={petRef}
+              config={config}
+              uri={uri}
+              size={80}
+              cache={false}
+              lookAtPointer={false}
+              dragging={drag.dragging}
+              hitboxRef={drag.handleRef}
+              onFling={onPhysics}
+              onBounce={onPhysics}
+            />
+          </div>
+        </div>
+      )
+    }
+    const view = await render(<Host />)
+    try {
+      const root = query(view.container, '.dsh-pet')
+      await expect.poll(() => kind === 'dsh' ? root.dataset.animation : root.dataset.row).toBeDefined()
+      await userEvent.dblClick(query(view.container, '.dsh-pet__hitbox'))
+      await expect.poll(() => root.dataset.motion, { timeout: 1000 }).toBe('waving')
+      if (kind === 'dsh')
+        expect(root.dataset.animation).toBe('success')
+      else
+        expect(root.dataset.row).toBe('3')
+    }
+    finally {
+      await view.unmount()
+    }
+  })
+}
+
 it('petDemo 面板：甩出/弹开/停止/复位真实接线，参数与几何可回显', async () => {
   const source = 'https://unpkg.com/@signalight/dsh-codex-pet@0.3.1/assets/nastya/spritesheet.webp'
   const key = MEDIA_CACHE_PREFIX + source
@@ -228,6 +274,10 @@ it('petDemo 面板：甩出/弹开/停止/复位真实接线，参数与几何�
   const stage = query(view.container, '.stage')
   try {
     await expect.poll(() => query(view.container, '.readout').textContent).toContain('width 80')
+    // 真正原生双击，包含 pointerup 与隐式 lostpointercapture，不手工省略捕获收尾。
+    await userEvent.dblClick(query(view.container, '.dsh-pet__hitbox'))
+    await expect.poll(() => root.dataset.motion).toBe('waving')
+    expect(root.dataset.row).toBe('3')
     const input = [...view.container.querySelectorAll<HTMLInputElement>('.slider input')].find(item => item.closest('label')?.textContent?.includes('边界回弹系数'))!
     await act(() => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '0.3')
