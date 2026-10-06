@@ -138,8 +138,8 @@ describe('气泡度量', () => {
     )
     const style = getComputedStyle(query(container, '.dsh-pet__bubble'))
 
-    expect(style.fontSize).toBe('13px')
-    expect(style.lineHeight).toBe('19px')
+    expect(style.fontSize).toBe('14px')
+    expect(style.lineHeight).toBe('20px')
     expect(style.paddingTop).toBe('10px')
     expect(style.paddingLeft).toBe('14px')
     expect(getComputedStyle(query(container, '.dsh-pet__bubble-indicator svg')).width).toBe('14px')
@@ -154,5 +154,14 @@ describe('气泡度量', () => {
     expect(style.paddingTop).toBe('12px')
     expect(style.paddingLeft).toBe('16px')
     expect(getComputedStyle(query(container, '.dsh-pet__bubble-indicator svg')).width).toBe('16px')
+  })
+
+  it('配图宽度按宠物宽度的 0.34 倍计算', async () => {
+    const { container } = await render(
+      <div style={{ '--dsh-pet-size': '200px' } as CSSProperties}>
+        <PetBubbleLayer bubbles={[bubble('a', 1, { image: '/meme.png', title: '标题' })]} />
+      </div>,
+    )
+    expect(getComputedStyle(query(container, '.dsh-pet__bubble-image')).width).toBe('68px')
   })
 })

@@ -469,11 +469,11 @@ describe('命令面与气泡', () => {
 })
 
 describe('内置交互与插播通道', () => {
-  it('双击命中箱插播 clicks 池的 waving（内置点击回应）', async () => {
+  it('单击命中框插播 clicks 池的 waving（内置点击回应）', async () => {
     // waving 的合法池是 `animations.clicks`（`motions` 里没有这一项）
     const config = makeDshConfig({ motions: { idle: 'idle' }, animations: { clicks: ['idle'] } })
     const pointerDowns: number[] = []
-    // 宿主的指针回调与内置双击判定叠加：两者都要收到事件
+    // 宿主的指针回调与内置点击判定叠加：两者都要收到事件
     const onHitboxPointerDown = () => {
       pointerDowns.push(pointerDowns.length + 1)
     }
@@ -481,14 +481,12 @@ describe('内置交互与插播通道', () => {
     await waitForPlaying(container, `${PET_MEDIA_DIR}/idle.webm`)
 
     const hitbox = query(container, '.dsh-pet__hitbox')
-    hitbox.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, isPrimary: true }))
-    window.dispatchEvent(new PointerEvent('pointerup', { isPrimary: true }))
-    await nextFrames(1)
-    hitbox.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, isPrimary: true }))
+    hitbox.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, isPrimary: true, pointerId: 1 }))
+    window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, isPrimary: true, pointerId: 1 }))
 
     await vi.waitFor(() => expect(motionOf(container)).toBe('waving'), { timeout: 5000 })
     expect(animationOf(container)).toBe('idle')
-    expect(pointerDowns).toHaveLength(2)
+    expect(pointerDowns).toHaveLength(1)
   })
 
   it('碎碎念插播走一次性通道：按动画名播一次后回待机，气泡随动画收起', async () => {

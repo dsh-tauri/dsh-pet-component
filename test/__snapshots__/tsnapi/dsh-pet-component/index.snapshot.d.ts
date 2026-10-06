@@ -148,6 +148,9 @@ export interface PetCommonProps extends PetHitboxProps {
   cache?: boolean;
   mirrored?: boolean;
   hidden?: boolean;
+  dialogue?: boolean;
+  onDialogue?: PetDialogueHandler;
+  toastRef?: Ref<HTMLDivElement>;
   className?: string;
   style?: CSSProperties;
   onMotionChange?: (_: PetRenderMotion) => void;
@@ -237,6 +240,7 @@ export interface PetRef {
   readonly geometry: PetGeometry | null;
   bubble: PetBubbleHandle;
   muttering: PetMutteringHandle;
+  reply: (_: string, _?: PetReplyOptions) => void;
 }
 export interface PetVelocity {
   vx: number;
@@ -268,11 +272,13 @@ export type PetBubbleVariant = 'default' | 'success' | 'warning' | 'danger';
 export type PetConfig = DshPetConfig | CodexPetConfig;
 export type PetConfigSource = string | PetConfig;
 export type PetCorner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+export type PetDialogueHandler = (_: string) => void;
 export type PetDisplay = 'web' | 'desktop' | 'both' | 'none';
 export type PetEvents = Record<string, EventSlot[]>;
 export type PetMutteringHandler = (_: string, _: PetMutteringEvent) => void;
 export type PetMutteringReason = 'baseline' | 'tick' | 'manual';
 export type PetRenderMotion = Motion | 'dragging';
+export type PetReplyOptions = PetMutteringShowOptions;
 // #endregion
 
 // #region Functions

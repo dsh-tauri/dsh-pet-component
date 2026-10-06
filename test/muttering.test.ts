@@ -126,6 +126,21 @@ describe('createMutteringController', () => {
     expect(shown).toHaveLength(1)
   })
 
+  it('reply 绕过首拍 baseline，但不消费后续周期的基线窗口', () => {
+    const { controller, shown } = setup()
+    controller.tick()
+    expect(controller.baselinePending).toBe(true)
+
+    controller.reply('对话回复')
+    expect(shown).toHaveLength(1)
+    expect(shown[0]?.text).toBe('对话回复')
+    expect(controller.baselinePending).toBe(true)
+
+    controller.show('基线回复')
+    expect(shown).toHaveLength(1)
+    expect(controller.baselinePending).toBe(false)
+  })
+
   it('未启用时周期不通知宿主，但显式展示仍生效', () => {
     const { controller, asked, shown } = setup({ enabled: false })
     controller.tick()

@@ -314,20 +314,36 @@ describe('命中框指针行为', () => {
     expect((onHitboxPointerDown.mock.calls[0]?.[0] as PointerEvent).type).toBe('pointerdown')
   })
 
-  it('命中框连按两次内置插播 waving（单击不动）', async () => {
-    const { container } = await render(renderCodex())
+  it('有效单击插播 waving，启用 dialogue 后第二次按下打开输入 toast', async () => {
+    const onDialogue = vi.fn()
+    const toastRef = createRef<HTMLDivElement>()
+    const { container } = await render(renderCodex({ dialogue: true, onDialogue, toastRef }))
     const root = query(container, '.dsh-pet')
     const hitbox = query(container, '.dsh-pet__hitbox')
 
-    hitbox.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, isPrimary: true }))
-    await nextFrames()
-    expect(root.dataset.motion).toBe('idle')
-
-    hitbox.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, isPrimary: true }))
+    hitbox.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, isPrimary: true, pointerId: 1 }))
+    window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, isPrimary: true, pointerId: 1 }))
     await vi.waitFor(() => {
       expect(root.dataset.motion).toBe('waving')
     })
     expect(root.dataset.row).toBe('3')
+
+    hitbox.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, isPrimary: true, pointerId: 1 }))
+    window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, isPrimary: true, pointerId: 1 }))
+    await nextFrames()
+    const toast = query(container, '.dsh-pet__dialogue')
+    const input = query(toast, '.dsh-pet__dialogue-input') as HTMLTextAreaElement
+    expect(toastRef.current).toBe(toast)
+
+    const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!
+    setValue.call(input, '  你好  ')
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    await vi.waitFor(() => {
+      expect(onDialogue).toHaveBeenCalledWith('你好')
+    })
+    expect(container.querySelector('.dsh-pet__dialogue')).toBeNull()
+    expect(toastRef.current).toBeNull()
   })
 })
 

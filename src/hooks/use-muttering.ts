@@ -72,10 +72,12 @@ export interface MutteringControllerOptions extends MutteringPorts {
 export interface MutteringController {
   /** 周期到点（首拍按 `immediate` 决定算不算基线） */
   tick: () => void
-  /** 立即索取一句（`reason: 'manual'`），绕过周期与首拍基线 */
+  /** 立即索取一句（`reason: 'manual'`），绕过首拍基线 */
   request: () => void
   /** 宿主推回一句：抽动画 + 弹气泡（首拍基线窗口内丢弃） */
   show: (text: string, options?: PetMutteringShowOptions) => void
+  /** 直接展示宿主主动回复，不受碎碎念首拍基线影响。 */
+  reply: (text: string, options?: PetMutteringShowOptions) => void
   /** 释放（此后 `tick`/`request`/`show` 全部 no-op） */
   dispose: () => void
   /** 是否处于首拍基线窗口（宿主推回的文本会被丢弃） */
@@ -150,14 +152,13 @@ export function createMutteringController(options: MutteringControllerOptions): 
     emit('manual')
   }
 
-  const show = (text: string, showOptions?: PetMutteringShowOptions): void => {
+  const display = (text: string, showOptions?: PetMutteringShowOptions, respectBaseline = true): void => {
     if (disposed)
       return
     const value = String(text ?? '').trim()
     if (value === '')
       return
-    // 首拍基线窗口：只记基线不展示（dsh-pet 首拉不触发的等价实现）
-    if (baselinePending) {
+    if (respectBaseline && baselinePending) {
       baselinePending = false
       return
     }
@@ -171,10 +172,19 @@ export function createMutteringController(options: MutteringControllerOptions): 
     })
   }
 
+  const show = (text: string, showOptions?: PetMutteringShowOptions): void => {
+    display(text, showOptions, true)
+  }
+
+  const reply = (text: string, showOptions?: PetMutteringShowOptions): void => {
+    display(text, showOptions, false)
+  }
+
   return {
     tick,
     request,
     show,
+    reply,
     dispose(): void {
       disposed = true
       baselinePending = false
@@ -194,6 +204,8 @@ export interface UseMutteringOptions extends Omit<MutteringControllerOptions, 'i
 export interface UseMutteringReturn {
   /** 稳定命令面（挂到组件 ref 上的 `muttering` 命名空间） */
   handle: PetMutteringHandle
+  /** 对话回复展示函数；绕过碎碎念首拍基线。 */
+  reply: (text: string, options?: PetMutteringShowOptions) => void
 }
 
 /**
@@ -269,12 +281,15 @@ export function useMuttering(options: UseMutteringOptions): UseMutteringReturn {
     [controller],
   )
   const request = useCallback(() => controller.request(), [controller])
+  const reply = useCallback(
+    (text: string, showOptions?: PetMutteringShowOptions) => controller.reply(text, showOptions),
+    [controller],
+  )
 
   const showRef = useRef(show)
   showRef.current = show
   const requestRef = useRef(request)
   requestRef.current = request
-
   const handleRef = useRef<PetMutteringHandle | null>(null)
   if (handleRef.current === null) {
     const call = ((text: string, showOptions?: PetMutteringShowOptions) => {
@@ -284,5 +299,5 @@ export function useMuttering(options: UseMutteringOptions): UseMutteringReturn {
     handleRef.current = call
   }
 
-  return { handle: handleRef.current }
+  return { handle: handleRef.current, reply }
 }

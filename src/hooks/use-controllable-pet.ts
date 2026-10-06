@@ -1,5 +1,5 @@
 import type { RefObject } from 'react'
-import type { PetBubbleHandle, PetBubbleOptions, PetMutteringHandle, PetMutteringShowOptions, PetRef } from '../types'
+import type { PetBubbleHandle, PetBubbleOptions, PetMutteringHandle, PetMutteringShowOptions, PetRef, PetReplyOptions } from '../types'
 import { useRef } from 'react'
 
 /**
@@ -45,6 +45,9 @@ export function useControllablePet(petRef?: RefObject<PetRef | null>): PetRef {
       petRef?.current?.muttering(text, options)
     }) as PetMutteringHandle
     muttering.request = () => petRef?.current?.muttering.request()
+    const reply = (text: string, options?: PetReplyOptions) => {
+      petRef?.current?.reply(text, options)
+    }
 
     handleRef.current = {
       motion(motion) {
@@ -73,6 +76,7 @@ export function useControllablePet(petRef?: RefObject<PetRef | null>): PetRef {
       },
       bubble,
       muttering,
+      reply,
     }
   }
   return handleRef.current

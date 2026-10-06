@@ -1,5 +1,5 @@
 import type { CSSProperties, PointerEvent as ReactPointerEvent, Ref } from 'react'
-import type { PetBubbleHandle, PetMutteringHandle, PetMutteringHandler } from './bubble'
+import type { PetBubbleHandle, PetDialogueHandler, PetMutteringHandle, PetMutteringHandler, PetReplyOptions } from './bubble'
 import type { PhysicsParams } from './config'
 import type { MotionInput, PetRenderMotion } from './motion'
 
@@ -94,6 +94,12 @@ export interface PetCommonProps extends PetHitboxProps {
   mirrored?: boolean
   /** 隐藏而非卸载（保持媒体常驻，避免重新挂载导致的重新加载与闪烁） */
   hidden?: boolean
+  /** 是否启用对话输入框：第二次有效单击（500ms 内）打开。 */
+  dialogue?: boolean
+  /** 对话输入提交后通知宿主；组件不请求模型、不持有 Promise。 */
+  onDialogue?: PetDialogueHandler
+  /** 对话输入框 toast 的 DOM ref，供宿主测量或接入点击穿透。 */
+  toastRef?: Ref<HTMLDivElement>
   className?: string
   style?: CSSProperties
   /** 生效动作变化时回调（含播完回落 idle） */
@@ -309,4 +315,6 @@ export interface PetRef {
    * 索取一句（绕过周期与首拍基线）。
    */
   muttering: PetMutteringHandle
+  /** 对话回复命令面：与碎碎念共用说话动画、气泡和配图展示链路。 */
+  reply: (text: string, options?: PetReplyOptions) => void
 }
