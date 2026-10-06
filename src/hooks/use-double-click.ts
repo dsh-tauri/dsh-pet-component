@@ -1,5 +1,4 @@
-import { useStateAutoReset } from '@reause/core'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 /**
  * 双击判定窗口 ms —— 与 dsh-pet / `deepseek-harness-desktop` 的 `DOUBLE_CLICK_MS` 同量级。
@@ -20,8 +19,7 @@ export interface UseDoubleClickOptions {
  * 双击判定 —— 命中框每次 `pointerdown` 调一次，两次按下间隔小于窗口即命中；
  * 命中后窗口立刻归零（三连按 = 一次双击 + 重新开窗）。
  *
- * 窗口用 reause 的 `useStateAutoReset` 表达：`armed` 为 `true` 表示「窗口还开着」，
- * 超时自动回到 `false`，不需要自己存时间戳。
+ * 判定时间存在 ref 中，同一渲染批次的原生快速事件也读取即时值；不需要定时器或重渲染。
  *
  * ```tsx
  * const onDoubleClick = useDoubleClick(() => pet.motion({ type: 'waving', replay: true }))
@@ -29,22 +27,26 @@ export interface UseDoubleClickOptions {
  */
 export function useDoubleClick(onDoubleClick: () => void, options: UseDoubleClickOptions = {}): (() => void) & { reset: () => void } {
   const { window = DOUBLE_CLICK_MS, interrupted = false } = options
-  const [armed, setArmed] = useStateAutoReset(false, window)
+  const lastPressRef = useRef<number | null>(null)
+  const reset = useCallback(() => {
+    lastPressRef.current = null
+  }, [])
 
   // 拖动开始就作废窗口：拖过的那次按下不算「第一下」
   useEffect(() => {
     if (interrupted)
-      setArmed(false)
-  }, [interrupted, setArmed])
+      reset()
+  }, [interrupted, reset])
 
-  const reset = useCallback(() => setArmed(false), [setArmed])
   const press = useCallback(() => {
-    if (!armed) {
-      setArmed(true) // 第一次按下：开窗等第二下
+    const now = Date.now()
+    const previous = lastPressRef.current
+    if (previous === null || now - previous >= window) {
+      lastPressRef.current = now
       return
     }
-    setArmed(false)
+    reset()
     onDoubleClick()
-  }, [armed, onDoubleClick, setArmed])
+  }, [onDoubleClick, reset, window])
   return useMemo(() => Object.assign(press, { reset }), [press, reset])
 }

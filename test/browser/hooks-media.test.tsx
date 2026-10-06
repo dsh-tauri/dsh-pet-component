@@ -534,8 +534,18 @@ describe('useDoubleClick', () => {
     expect(onDoubleClick).toHaveBeenCalledTimes(2)
   })
 
+  it('同一渲染批次的快速双击仍命中一次', async () => {
+    const onDoubleClick = vi.fn()
+    const view = await renderHook(() => useDoubleClick(onDoubleClick))
+    await view.act(() => {
+      view.result.current()
+      view.result.current()
+    })
+    expect(onDoubleClick).toHaveBeenCalledTimes(1)
+  })
+
   it('超过窗口再按只算第一次', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    vi.useFakeTimers({ toFake: ['Date'] })
     try {
       const onDoubleClick = vi.fn()
       const view = await renderHook(() => useDoubleClick(onDoubleClick, { window: 300 }))
