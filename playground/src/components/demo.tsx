@@ -87,7 +87,7 @@ const BUBBLE_TITLE = '会话示例'
  * | 甩动 / 弹开 | `pet.fling` / `pet.bounce` 请求，playground 宿主积分与移动 |
  * | 即时几何 | `pet.geometry`（renderer 与 body 的 viewport CSS px） |
  * | 走路素材 | `moving-left` / `moving-right`（dsh 取 `moves` 池，与拖动是两套素材） |
- * | 点击回应 | `<Pet>` 内置双击判定（命中框连按两次即插播 `waving`） |
+ * | 点击回应 | `<Pet>` 有效单击插播 `waving`；启用 `dialogue` 后第二次按下打开输入 toast |
  * | 缓存 | `cache` prop（资源落 IndexedDB，第二次走本地） |
  * | 只读回显 | `onMotionChange` / `onAnimationChange` + `data-look` |
  * | 媒体控制 | 见 `media-player.tsx`（playground 自己的 `useMediaControls`） |
@@ -293,11 +293,11 @@ export function PetDemo() {
             （宠物身体那一小块，勾上「显示命中框」可以看到），点空白处不起拖。拖动时
             {' '}
             {isCodex ? 'Codex 按方向播左右行走行' : 'dsh-pet 只播 animations.drag 的悬空姿势（走路素材在动作墙里手动触发）'}
-            ，单击不播拖动动画；双击由
+            ，单击会播放点击回应；启用 `dialogue` 时第二次按下由
             {' '}
             <code>&lt;Pet&gt;</code>
             {' '}
-            内置判定，命中即插播一次点击回应。当前方向：
+            打开输入 toast。当前方向：
             <code>{direction ?? '—'}</code>
           </p>
 

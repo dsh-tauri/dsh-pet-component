@@ -17,7 +17,7 @@ export const PET_STYLE_ID = 'dsh-pet-component/styles'
 const { c } = CssRender()
 
 const style = c([
-  // 气泡外壳（只有 `Pet` 会渲染它）：给「渲染器 + 气泡层」一个共同的定位上下文。
+  // 气泡与对话 toast 都由 `Pet` 渲染：给「渲染器 + 叠加层」一个共同的定位上下文。
   // 与 `.dsh-pet` 同为 inline-block，不改变宿主既有布局；它同时是 `--dsh-pet-size`
   // （气泡全部尺寸的等比基准）的落点 —— 基准值由 `Pet` 实测宠物宽度后写入。
   c('.dsh-pet-shell', {
@@ -99,12 +99,52 @@ const style = c([
   // 但**度量按宠物宽度等比缩到合身**（`scaled()`，基准 462px）—— 直接照搬 460px 的固定宽度
   // 会比宠物大出一圈（desktop 那边靠把窗口撑到 `PET_BUBBLE_MIN_WIDTH = 420` 才显得合身，
   // 网页里没有这个手段）。
+  c('.dsh-pet__dialogue', {
+    position: 'absolute',
+    left: '50%',
+    bottom: 'calc(100% - var(--dsh-pet-size, 462px) * 0.108)',
+    translate: '-50% 0',
+    boxSizing: 'border-box',
+    width: 'clamp(160px, calc(var(--dsh-pet-size, 462px) * 0.55), 340px)',
+    maxWidth: 'calc(100vw - 2rem)',
+    padding: '10px 12px',
+    border: '1px solid var(--border, #d4d4d8)',
+    borderRadius: '12px',
+    background: 'var(--surface, #ffffff)',
+    color: 'var(--overlay-foreground, #18181b)',
+    boxShadow: 'var(--shadow-overlay, 0 10px 30px rgba(0, 0, 0, 0.16))',
+    zIndex: '4',
+    pointerEvents: 'auto',
+    fontFamily: 'var(--font-sans, ui-sans-serif, system-ui, "PingFang SC", "Microsoft YaHei", sans-serif)',
+    lineHeight: '1.4',
+  }),
+  c('.dsh-pet__dialogue-input', {
+    display: 'block',
+    boxSizing: 'border-box',
+    width: '100%',
+    minHeight: '40px',
+    maxHeight: '140px',
+    resize: 'none',
+    overflowY: 'auto',
+    padding: '8px 10px',
+    border: '1px solid var(--border, #d4d4d8)',
+    borderRadius: '8px',
+    outline: 'none',
+    background: 'var(--surface, #ffffff)',
+    color: 'inherit',
+    font: 'inherit',
+    lineHeight: '1.4',
+  }),
+  c('.dsh-pet__dialogue-input:focus', {
+    borderColor: 'var(--accent, #6366f1)',
+    boxShadow: '0 0 0 2px color-mix(in srgb, var(--accent, #6366f1) 20%, transparent)',
+  }),
   c('.dsh-pet__bubbles', {
     position: 'absolute',
     left: '50%',
     translate: '-50% 0',
     width: 'max-content',
-    maxWidth: 'calc(100vw - 2rem)',
+    maxWidth: 'calc(85vw - 2rem)',
     zIndex: '3',
     pointerEvents: 'none',
     fontFamily: 'var(--font-sans, ui-sans-serif, system-ui, "PingFang SC", "Microsoft YaHei", sans-serif)',
@@ -125,14 +165,15 @@ const style = c([
     gap: scaled(0.013, '5px', '6px'),
     minWidth: 'min(calc(var(--dsh-pet-size, 462px) * 0.92), calc(100vw - 2rem))',
     maxWidth: 'calc(100vw - 2rem)',
-    // 度量下界贴着参考实现的固定值（见 `scaled()` 的说明）：字号 13px、内边距 10/14px、
+    // 度量下界贴着参考实现的固定值（见 `scaled()` 的说明）：字号 14px、内边距 10/14px、
     // 圆角 16px、图标 14px —— 宠物小的时候整条 toast 不再跟着缩到看不清
     padding: `${scaled(0.026, '10px', '12px')} ${scaled(0.0347, '14px', '16px')}`,
-    borderRadius: 'min(24px, max(16px, calc(var(--dsh-pet-size, 462px) * 0.052)))',
+    // 全圆角（胶囊）：CSS 会把超过边长一半的半径按比例缩到半高，多行时也是胶囊而不是方块
+    borderRadius: '999px',
     background: 'var(--surface, #ffffff)',
     color: 'var(--overlay-foreground, #18181b)',
-    fontSize: scaled(0.0304, '13px', '14px'),
-    lineHeight: scaled(0.0433, '19px', '20px'),
+    fontSize: scaled(0.0303, '14px', '15px'),
+    lineHeight: scaled(0.04329, '20px', '21px'),
     pointerEvents: 'none',
     boxShadow: 'var(--shadow-overlay, 0 10px 30px rgba(0, 0, 0, 0.16))',
     // 运动学照抄 HeroUI v3 的 `.toast`：`transform` 250ms、`opacity` 150ms（进场 350ms，
@@ -219,16 +260,16 @@ const style = c([
   }),
   // 标题（HeroUI `.toast__title`：text-sm / leading-5 / medium）
   c('.dsh-pet__bubble-title', {
-    fontSize: scaled(0.0304, '13px', '14px'),
-    lineHeight: scaled(0.0433, '19px', '20px'),
+    fontSize: scaled(0.0303, '14px', '15px'),
+    lineHeight: scaled(0.04329, '20px', '21px'),
     fontWeight: '500',
     color: 'var(--overlay-foreground, #18181b)',
     overflowWrap: 'anywhere',
   }),
   // 正文（HeroUI `.toast__description` = text-sm + muted；本组件只显示一行）
   c('.dsh-pet__bubble-text', {
-    fontSize: scaled(0.0304, '13px', '14px'),
-    lineHeight: scaled(0.0433, '19px', '20px'),
+    fontSize: scaled(0.0303, '14px', '15px'),
+    lineHeight: scaled(0.04329, '20px', '21px'),
     color: 'var(--muted, #71717a)',
     display: '-webkit-box',
     WebkitBoxOrient: 'vertical',
@@ -239,7 +280,7 @@ const style = c([
   // 配图（本组件的扩展：desktop 的 toast 没有图）：贴住内容列，不撑破气泡
   c('.dsh-pet__bubble-image', {
     display: 'block',
-    width: 'min(calc(var(--dsh-pet-size, 462px) * 0.26), 120px)',
+    width: 'calc(var(--dsh-pet-size, 462px) * 0.34)',
     maxWidth: '100%',
     height: 'auto',
     marginBottom: scaled(0.0087, '2px', '4px'),
@@ -283,7 +324,7 @@ const style = c([
  * （`.toast__title` 的 `text-sm` + `leading-5`），只有宽度跟着那个窄窗走
  * （`source/deepseek-harness-desktop/src/pet/main.css` 的 `.toast-region { width: calc(90vw - 2rem) }`）。
  * 早期版本把下界放得太低（字号 11px / 内边距 6·8px / 图标 12px），宠物一小整条 toast 就跟着
- * 缩成一小块、正文看不清（用户报告）。现在的缩放带很窄（字号 13~14px 等），
+ * 缩成一小块、正文看不清（用户报告）。现在的缩放带很窄（字号 14~15px 等），
  * 实际观感≈参考实现的固定尺寸，大宠物上才用得满。
  *
  * 用函数声明（会被提升），所以能写在 `c([...])` 下面又被上面引用。

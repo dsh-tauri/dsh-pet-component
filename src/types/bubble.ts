@@ -136,6 +136,12 @@ export interface PetMutteringShowOptions {
   duration?: number
 }
 
+/** `pet.reply(text, options)` 的可选项；对话回复与碎碎念共用展示链路。 */
+export type PetReplyOptions = PetMutteringShowOptions
+
+/** 对话输入框提交后的宿主回调；组件不请求模型、不持有 Promise。 */
+export type PetDialogueHandler = (text: string) => void
+
 /** 碎碎念命令面：可调用（展示一句）+ `request()`（立即再要一句，绕过节流）。 */
 export interface PetMutteringHandle {
   (text: string, options?: PetMutteringShowOptions): void

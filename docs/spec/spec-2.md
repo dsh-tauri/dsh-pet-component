@@ -18,7 +18,7 @@
 
 ### 1.2 明确排除（本轮不做）
 
-- **`pet.chat({ ... })`**：已裁决移出本轮（输入弹窗 + 对话记忆留待后续设计）。
+- **完整 `pet.chat({ ... })` 会话接口**：本轮不做网络请求、对话记忆、多轮会话与模型状态管理；组件仅提供 `dialogue` 输入 toast、`onDialogue(text)` 协议和 `pet.reply(text, options)` 展示命令。
 - **会话状态聚合**（`STATUS_PRIORITY` / 合并窗口 / 终态 TTL / 沉淀）：留在宿主的
   `deepseek-harness-desktop/src/pet/utils/bubble-tracker.ts`，本组件只接收已聚合的结果。
 - **宿主迁移**：desktop 换掉 HeroUI toast 是它的独立事项，本仓库不依赖、不阻塞。
@@ -30,7 +30,7 @@
 
 | # | 议题 | 结论 | 依据 |
 | :--- | :--- | :--- | :--- |
-| D1 | `pet.chat` 语义 | **本轮不做** | 用户裁决（2026-09-16） |
+| D1 | 完整 `pet.chat` 会话语义 | **本轮不做**；仅纳入 `dialogue` / `onDialogue` / `pet.reply` 协议 | 用户裁决（2026-09-16） |
 | D2 | `onMuttering` 合约 | **回调是「该要一句了」的通知**；宿主生成后调 `pet.muttering(text)` 推回 | 用户裁决 |
 | D3 | 首拍语义 | **严格对齐 dsh-pet**：首拍只记基线、不展示 | 用户裁决 |
 | D4 | 配图 memes | **纳入 v0.2.0** | 用户裁决 |
@@ -117,12 +117,18 @@ export interface PetRef {
   bubble: PetBubbleHandle
   /** v0.2.0 */
   muttering: PetMutteringHandle
+  /** 对话回复：共用碎碎念动画、气泡与配图链路，绕过首拍基线。 */
+  reply: (text: string, options?: PetReplyOptions) => void
 }
 ```
 
-`useControllablePet(petRef)` 透传同一套命名空间（`pet.bubble({...})` / `pet.muttering(text)`）。
+`useControllablePet(petRef)` 透传同一套命名空间（`pet.bubble({...})` / `pet.muttering(text)` / `pet.reply(text)`）。
 
 ### 3.3 `PetProps` 扩展
+
+通用 props 还提供对话输入协议：`dialogue?: boolean` 启用第二次有效单击打开的 toast，
+`onDialogue?: (text: string) => void` 接收提交文本，`toastRef?: Ref<HTMLDivElement>` 暴露 toast 根节点。
+组件不请求模型；宿主在生成回复后调用 `pet.reply(text, options)`。
 
 ```ts
 export interface PetProps extends PetCommonProps {
@@ -306,7 +312,7 @@ ref 上再挂 `bubble` / `muttering` 两个命名空间，两处写同一个 ref
 | **P0-1** | `bubble` 展示层：句柄组合 + 队列 + 叠加 + 样式 + 捆绑动画 | 可独立验收的底座 + `bubble-queue.test.ts` |
 | **P0-2** | `muttering` 触发层：节拍 / 首拍基线 / `pet.muttering` / `request()` / `events.whisper` 抽池 / 10s / 静默 | `muttering.test.ts` |
 | **P1** | 配图 memes：类型 + 随机抽 + 载荷 + 气泡图片渲染 | `meme.test.ts` |
-| **后续** | `pet.chat`、声明式 `bubbles={[...]}`、`bubblePortal`、desktop 迁移 | 另立 spec |
+| **后续** | 完整 `pet.chat` 会话、声明式 `bubbles={[...]}`、`bubblePortal`、desktop 迁移 | 另立 spec |
 
 每阶段一个 PR，PR 描述关联本文档章节。验证命令：
 
@@ -320,7 +326,7 @@ pnpm dev:playground                        # 手动验收：叠加 / 更新 / �
 ## 9. 未决与待办
 
 1. **上一轮上游同步的 3 项裁决仍未回填**（`source/dsh-pet` 2136e5d→4c09729 评估结论：建议采纳 0 / 不采纳 21 / 待定 1）：① `whisperImageEnabled`/`chatImageEnabled`/`memes` 是否补类型（**本次因配图纳入而自动成立**）；② gitlink 是否推进到 `4c09729`；③ 记录落在 `docs/sync/2026-09-11.md` 还是新建 `2026-09-16.md`。
-2. `pet.chat` 的语义（输入弹窗 / 多轮会话气泡 / 纯命令式）待定后再开 spec。
+2. 完整 `pet.chat` 的网络、多轮会话与状态聚合语义待定后再开 spec；本轮的 `dialogue` / `onDialogue` / `pet.reply` 协议已落地。
 3. 声明式 `bubbles={[...]}` 与 `motion` prop 的接管语义（谁优先）尚未定，默认先只做命令式。
 
 ---

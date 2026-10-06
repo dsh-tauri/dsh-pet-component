@@ -4,7 +4,6 @@ import { useElementSize } from '@reause/core'
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { detectPetKind, dshEventPool, PET_DEFAULT_EXT, resolveMutteringPlan, resolvePhysics, selectPetEntry } from '../config'
 import { useConfig } from '../hooks/use-config'
-import { useControllablePet } from '../hooks/use-controllable-pet'
 import { useDoubleClick } from '../hooks/use-double-click'
 import { useMuttering } from '../hooks/use-muttering'
 import { usePetBubbles } from '../hooks/use-pet-bubbles'
@@ -13,6 +12,7 @@ import { motionKey } from '../utils/bubble'
 import { resolveAssetUrl, resolvePlatformValue, resolveSpritesheetUrl } from '../utils/env'
 import { PetBubbleLayer } from './bubble-layer'
 import { CodexPet } from './codex-pet'
+import { DialogueToast } from './dialogue-toast'
 import { DshPet } from './dsh-pet'
 
 /** 碎碎念气泡的固定 key：同一时刻只有一句碎碎念，重复触发=原地换句（不重新淡入）。 */
@@ -23,9 +23,9 @@ type ShellStyle = CSSProperties & Record<`--${string}`, string>
 
 /**
  * 合并 ref：宿主的 ref 原样转发（对象 ref 与回调 ref 都支持、回调返回的清理函数也照传），
- * 同时把同一个命令面句柄留在内部 ref 上 —— 内置双击要用它下发 `waving`。
+ * 同时把同一个命令面句柄留在内部 ref 上 —— 内置点击反馈要用它下发 `waving`。
  *
- * 这样 `<Pet config uri />` 不传 ref 时双击同样有效，传了 ref 的宿主也不受影响。
+ * 这样 `<Pet config uri />` 不传 ref 时点击反馈同样有效，传了 ref 的宿主也不受影响。
  */
 function useMergedRef(hostRef: Ref<PetRef | null> | undefined, innerRef: RefObject<PetRef | null>): Ref<PetRef | null> {
   return useCallback((node: PetRef | null) => {
@@ -80,9 +80,9 @@ function useMergedRef(hostRef: Ref<PetRef | null> | undefined, innerRef: RefObje
  * )
  * ```
  *
- * **单击/双击是内置行为**：命中框上两次按下间隔小于 `DOUBLE_CLICK_MS` 即插播一次
- * `waving`（dsh-pet 取 `animations.clicks` 池，Codex 走 `waving` 行），宿主不必自己判定；
- * 判定挂在你传入的 `onHitboxPointerDown` 之外，宿主自己的指针回调照常收到事件。
+ * **点击反馈与对话是内置行为**：每次有效左键单击都会插播一次 `waving`
+ * （dsh-pet 取 `animations.clicks` 池，Codex 走 `waving` 行）；启用 `dialogue` 后，500ms 内的第二次按下
+ * 还会打开输入 toast。宿主不必自己判定，自己的指针回调仍会照常收到事件。
  *
  * **气泡层的定位**：`Pet` 自己套一层 `.dsh-pet-shell`（inline-block，不改变宿主布局），
  * 渲染器与气泡层都在其中；`--dsh-pet-size` 由实测宽度写在壳体上，气泡据此等比缩放。
@@ -110,10 +110,14 @@ export function Pet(props: PetProps) {
     mutteringDuration,
     mutteringMotion,
     onMuttering,
+    dialogue,
+    onDialogue,
+    toastRef,
     ...common
   } = props
   const { config: loaded, error } = useConfig<PetConfig>(config)
   const { onError } = common
+  const [dialogueOpen, setDialogueOpen] = useState(false)
 
   /* --------------------------------- 句柄基础 -------------------------------- */
 
@@ -122,7 +126,6 @@ export function Pet(props: PetProps) {
   const innerRef = useRef<PetRef | null>(null)
   const motionRef = useRef<PetRef | null>(null)
   const mergedRef = useMergedRef(ref, innerRef)
-  const pet = useControllablePet(innerRef)
   const { squash, stopSquash } = usePetSquash(shellRef, common.dragging === true)
 
   useEffect(() => {
@@ -303,7 +306,7 @@ export function Pet(props: PetProps) {
     hostAnimationChange?.(info)
   }, [hostAnimationChange])
 
-  const { handle: mutteringHandle } = useMuttering({
+  const { handle: mutteringHandle, reply } = useMuttering({
     enabled: plan.enabled,
     prompt: plan.prompt,
     intervalSec: plan.intervalSec,
@@ -361,23 +364,36 @@ export function Pet(props: PetProps) {
     },
     bubble: bubbleHandle,
     muttering: mutteringHandle,
-  }), [bubbleHandle, motionClear, motionRequest, mutteringHandle, onBounce, onFling, readGeometry, requestPhysics, squash, stopSquash])
+    reply,
+  }), [bubbleHandle, motionClear, motionRequest, mutteringHandle, onBounce, onFling, readGeometry, reply, requestPhysics, squash, stopSquash])
 
   useImperativeHandle(mergedRef, () => handle, [handle])
 
   /* --------------------------------- 点击回应 -------------------------------- */
 
-  // 命中框上连按两次 → 插播一次 waving（`replay` 不能省，否则同动作会被去重）；
-  // 拖动会话会作废判定窗口，所以「拖一下再快速点一下」不算双击
-  const onDoubleClick = useDoubleClick(
-    () => pet.motion({ type: 'waving', replay: true }),
-    { interrupted: common.dragging === true },
-  )
+  const closeDialogue = useCallback(() => {
+    setDialogueOpen(false)
+  }, [])
+  const submitDialogue = useCallback((text: string) => {
+    onDialogue?.(text)
+  }, [onDialogue])
+  const openDialogue = useCallback(() => {
+    if (dialogue)
+      setDialogueOpen(true)
+  }, [dialogue])
 
-  // 松手监听只依赖稳定的 reset，不能随按下后的双击窗口变化而重绑/漏掉 pointerup。
-  const resetDoubleClick = onDoubleClick.reset
+  // 每次有效单击都播放 waving；第二次有效单击在窗口内另外打开对话 toast。
+  // `waving` 在 dsh 配置中解析到 `animations.clicks`，Codex 则使用 waving 行。
+  const playClickMotion = useCallback(() => {
+    motionRequest({ type: 'waving', replay: true })
+  }, [motionRequest])
+  // 只在通过 pointerup 的点击确认后登记双击，避免按下后拖动仍打开对话框。
+  const registerClick = useDoubleClick(openDialogue, {
+    interrupted: common.dragging === true,
+  })
+  const resetDoubleClick = registerClick.reset
 
-  // 全局收尾：指针离开 hitbox 后松开也能结束；取消/拖动/右键不产生点击挤压。
+  // 全局收尾：指针离开 hitbox 后松开也能结束；取消/拖动/右键不产生点击回应。
   const pressRef = useRef<{ id: number, x: number, y: number, moved: boolean } | null>(null)
   useEffect(() => {
     const move = (event: PointerEvent) => {
@@ -396,9 +412,17 @@ export function Pet(props: PetProps) {
         resetDoubleClick()
         stopSquash()
       }
-      if (event.type === 'pointerup' && !press.moved && !common.dragging
-        && Math.hypot(event.clientX - press.x, event.clientY - press.y) < 5) {
-        squash()
+      if (event.type === 'pointerup') {
+        const validClick = !press.moved && !common.dragging
+          && Math.hypot(event.clientX - press.x, event.clientY - press.y) < 5
+        if (validClick) {
+          playClickMotion()
+          squash()
+          registerClick()
+        }
+        else {
+          resetDoubleClick()
+        }
       }
     }
     const abort = () => {
@@ -422,14 +446,22 @@ export function Pet(props: PetProps) {
       window.removeEventListener('pointerup', end, true)
       window.removeEventListener('pointercancel', end, true)
     }
-  }, [common.dragging, resetDoubleClick, squash, stopSquash])
+  }, [common.dragging, playClickMotion, registerClick, resetDoubleClick, squash, stopSquash])
+
+  useEffect(() => {
+    if (!dialogue) {
+      // 清除禁用期间的会话状态，重新启用 dialogue 时不能恢复旧 toast。
+      // eslint-disable-next-line react/set-state-in-effect -- prop 禁用必须同步关闭已挂载的 toast。
+      setDialogueOpen(false)
+      resetDoubleClick()
+    }
+  }, [dialogue, resetDoubleClick])
 
   const onHitboxPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button === 0 && event.isPrimary !== false
+    if (event.button === 0 && event.isPrimary !== false && common.dragging !== true
       && (pressRef.current === null || pressRef.current.id === event.pointerId)) {
       stopSquash()
       pressRef.current = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false }
-      onDoubleClick()
     }
     common.onHitboxPointerDown?.(event)
   }
@@ -437,8 +469,11 @@ export function Pet(props: PetProps) {
   /* ---------------------------------- 渲染 --------------------------------- */
 
   const shellStyle: ShellStyle | undefined = width > 0 ? { '--dsh-pet-size': `${width}px` } : undefined
-  // 宠物被 `hidden` 藏起来时气泡一起藏（气泡长在它身上）
+  // 宠物被 `hidden` 藏起来时气泡和输入框一起藏（它们都长在壳体上）。
   const bubbleLayer = common.hidden === true ? null : <PetBubbleLayer bubbles={bubbles} />
+  const dialogueToast = dialogueOpen && dialogue && common.hidden !== true
+    ? <DialogueToast ref={toastRef} onSubmit={submitDialogue} onClose={closeDialogue} />
+    : null
 
   if (resolvedKind === 'codex') {
     return (
@@ -456,6 +491,7 @@ export function Pet(props: PetProps) {
           lookRadius={lookRadius}
         />
         {bubbleLayer}
+        {dialogueToast}
       </div>
     )
   }
@@ -473,6 +509,7 @@ export function Pet(props: PetProps) {
         ext={ext}
       />
       {bubbleLayer}
+      {dialogueToast}
     </div>
   )
 }

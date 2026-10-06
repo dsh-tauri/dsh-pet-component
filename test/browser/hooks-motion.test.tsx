@@ -433,6 +433,7 @@ interface FakePet {
   clearBubbles: ReturnType<typeof vi.fn>
   showMuttering: ReturnType<typeof vi.fn>
   requestMuttering: ReturnType<typeof vi.fn>
+  reply: ReturnType<typeof vi.fn>
 }
 
 /** 一台记录调用的假桌宠实例（`useControllablePet` 只做转发，不是真渲染器）。 */
@@ -446,6 +447,7 @@ function makeFakePet(current: PetRenderMotion = 'thinking'): FakePet {
   const clearBubbles = vi.fn()
   const showMuttering = vi.fn()
   const requestMuttering = vi.fn()
+  const reply = vi.fn()
 
   const pet: PetRef = {
     motion,
@@ -460,9 +462,10 @@ function makeFakePet(current: PetRenderMotion = 'thinking'): FakePet {
     },
     bubble: Object.assign(showBubble, { close: closeBubble, clear: clearBubbles }),
     muttering: Object.assign(showMuttering, { request: requestMuttering }),
+    reply,
   }
 
-  return { pet, motion, clear, fling, bounce, showBubble, closeBubble, clearBubbles, showMuttering, requestMuttering }
+  return { pet, motion, clear, fling, bounce, showBubble, closeBubble, clearBubbles, showMuttering, requestMuttering, reply }
 }
 
 describe('useControllablePet', () => {
@@ -487,6 +490,10 @@ describe('useControllablePet', () => {
     expect(fake.pet.squash).toHaveBeenCalledWith(900)
     view.result.current.stopSquash()
     expect(fake.pet.stopSquash).toHaveBeenCalledTimes(1)
+
+    const replyOptions: PetMutteringShowOptions = { image: '/reply.png', duration: 2500 }
+    view.result.current.reply('回复', replyOptions)
+    expect(fake.reply).toHaveBeenCalledWith('回复', replyOptions)
   })
 
   it('气泡命令转发：调用 + close / clear', async () => {
@@ -537,6 +544,7 @@ describe('useControllablePet', () => {
     expect(() => view.result.current.bubble.clear()).not.toThrow()
     expect(() => view.result.current.muttering('x')).not.toThrow()
     expect(() => view.result.current.muttering.request()).not.toThrow()
+    expect(() => view.result.current.reply('回复')).not.toThrow()
   })
 
   it('不传 ref 也能用（可选参数）', async () => {
@@ -551,6 +559,7 @@ describe('useControllablePet', () => {
     expect(view.result.current.bubble({ title: 'x' })).toBe('')
     expect(() => view.result.current.motion('idle')).not.toThrow()
     expect(() => view.result.current.muttering.request()).not.toThrow()
+    expect(() => view.result.current.reply('回复')).not.toThrow()
   })
 
   it('命令面引用稳定，可安全放进依赖数组', async () => {

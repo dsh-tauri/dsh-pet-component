@@ -82,7 +82,7 @@ function App() {
           {' '}
           <a href="https://www.npmjs.com/package/@signalight/dsh-codex-pet" target="_blank" rel="noreferrer">@signalight/dsh-codex-pet</a>
           {' '}
-          （Codex v2 图集）；拖拽阈值、双击判定与命中框尺寸按 dsh-pet / deepseek-harness-desktop 对齐。
+          （Codex v2 图集）；拖拽阈值、单击反馈/对话二次按下判定与命中框尺寸按 dsh-pet / deepseek-harness-desktop 对齐。
         </p>
       </footer>
     </div>

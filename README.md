@@ -167,7 +167,7 @@ pet.stopSquash() // 主动取消并恢复媒体
 媒体层与镜像层分离，两种 renderer 都支持；不改变位置、hitbox、几何或 Motion，
 也不会因 `bounce` 自动挤压（上游只对空中→落地触发）。新调用替换旧效果，
 抓取、拖拽、取消、卸载和动态切换“减少动态效果”会恢复纯媒体；非法速度/未挂载为空操作。
-真实左键单击内置挤压反馈；保留既有双击 waving 动作合约，不改成上游单击切换动作。
+真实左键单击同时触发 `waving` 动作与挤压反馈（dsh 使用 `animations.clicks` 池）；启用 `dialogue` 后，500ms 内第二次按下会打开输入 toast。
 挤压覆盖整个媒体层，新前台视频交叉淡入时沿用同一效果，不依赖旧 video 的 loadeddata。
 等价的内联配置/URI 对象重建不截断反馈；实际素材地址/扩展名、渲染器或隐藏状态变化才取消。
 完整逐项核对与刻意保留的宿主差异见 [交互清单](<docs/spec/pet-interactions.md>)。
@@ -196,6 +196,17 @@ pet.bubble.clear()         // 清空气泡
   }}
 />
 
+// 对话输入只负责收集文本；模型调用和回复展示由宿主决定
+<Pet
+  ref={petRef}
+  config={config}
+  uri={uri}
+  dialogue
+  onDialogue={text => {
+    generateAI(text).then(reply => petRef.current?.reply(reply))
+  }}
+  toastRef={toastRef}
+/>
 ```
 
 ---
@@ -215,6 +226,9 @@ pet.bubble.clear()         // 清空气泡
 | `cache` | `boolean` | `true` | 是否开启 IndexedDB 缓存 |
 | `mirrored` | `boolean` | `false` | 是否开启水平镜像翻转 |
 | `muttering` | `boolean` | *config* | 是否开启碎碎念 |
+| `dialogue` | `boolean` | `false` | 启用 500ms 内第二次按下打开输入 toast |
+| `onDialogue` | `(text: string) => void` | — | 提交对话文本，组件不请求模型 |
+| `toastRef` | `Ref<HTMLDivElement>` | — | 获取对话 toast 根节点 |
 | `onMotionChange` | `(motion: string) => void` | — | 实际动作变更回调 |
 | `physics` | `Partial<PhysicsParams>` | *config / 内置默认* | 覆盖宿主物理参数，不驱动物理 |
 | `onFling` / `onBounce` | `(event: PetPhysicsEvent) => void` | — | 最终速度与几何/参数快照 |

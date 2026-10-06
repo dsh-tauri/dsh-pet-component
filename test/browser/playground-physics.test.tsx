@@ -206,7 +206,7 @@ for (const kind of ['dsh', 'codex'] as const) {
 }
 
 for (const kind of ['dsh', 'codex'] as const) {
-  it(`playground ${kind}：原生双击在指针捕获/释放后仍播放 waving`, async () => {
+  it(`playground ${kind}：原生单击在指针捕获/释放后播放 waving`, async () => {
     const config = kind === 'dsh' ? makeDshConfig({ animations: { clicks: ['success'] } }) : makeCodexConfig()
     const uri = kind === 'dsh' ? dshUri : makeSpritesheetDataUrl()
     function Host() {
@@ -237,7 +237,7 @@ for (const kind of ['dsh', 'codex'] as const) {
     try {
       const root = query(view.container, '.dsh-pet')
       await expect.poll(() => kind === 'dsh' ? root.dataset.animation : root.dataset.row).toBeDefined()
-      await userEvent.dblClick(query(view.container, '.dsh-pet__hitbox'))
+      await userEvent.click(query(view.container, '.dsh-pet__hitbox'))
       await expect.poll(() => root.dataset.motion, { timeout: 1000 }).toBe('waving')
       if (kind === 'dsh')
         expect(root.dataset.animation).toBe('success')
@@ -274,8 +274,8 @@ it('petDemo 面板：甩出/弹开/停止/复位真实接线，参数与几何�
   const stage = query(view.container, '.stage')
   try {
     await expect.poll(() => query(view.container, '.readout').textContent).toContain('width 80')
-    // 真正原生双击，包含 pointerup 与隐式 lostpointercapture，不手工省略捕获收尾。
-    await userEvent.dblClick(query(view.container, '.dsh-pet__hitbox'))
+    // 真正原生单击，包含 pointerup 与隐式 lostpointercapture，不手工省略捕获收尾。
+    await userEvent.click(query(view.container, '.dsh-pet__hitbox'))
     await expect.poll(() => root.dataset.motion).toBe('waving')
     expect(root.dataset.row).toBe('3')
     const input = [...view.container.querySelectorAll<HTMLInputElement>('.slider input')].find(item => item.closest('label')?.textContent?.includes('边界回弹系数'))!

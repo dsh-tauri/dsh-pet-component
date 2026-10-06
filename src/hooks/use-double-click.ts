@@ -16,13 +16,13 @@ export interface UseDoubleClickOptions {
 }
 
 /**
- * 双击判定 —— 命中框每次 `pointerdown` 调一次，两次按下间隔小于窗口即命中；
- * 命中后窗口立刻归零（三连按 = 一次双击 + 重新开窗）。
+ * 双击判定 —— 每次有效交互调用一次，两次调用间隔小于窗口即命中；
+ * 命中后窗口立刻归零（三次有效交互 = 一次双击 + 重新开窗）。
  *
  * 判定时间存在 ref 中，同一渲染批次的原生快速事件也读取即时值；不需要定时器或重渲染。
  *
  * ```tsx
- * const onDoubleClick = useDoubleClick(() => pet.motion({ type: 'waving', replay: true }))
+ * const onDoubleClick = useDoubleClick(() => openDialogue())
  * ```
  */
 export function useDoubleClick(onDoubleClick: () => void, options: UseDoubleClickOptions = {}): (() => void) & { reset: () => void } {

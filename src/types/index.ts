@@ -5,11 +5,13 @@ export type {
   PetBubbleOptions,
   PetBubblePlacement,
   PetBubbleVariant,
+  PetDialogueHandler,
   PetMutteringEvent,
   PetMutteringHandle,
   PetMutteringHandler,
   PetMutteringReason,
   PetMutteringShowOptions,
+  PetReplyOptions,
 } from './bubble'
 export type {
   AnimationSlot,
