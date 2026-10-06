@@ -168,7 +168,8 @@ const style = c([
     // 度量下界贴着参考实现的固定值（见 `scaled()` 的说明）：字号 14px、内边距 10/14px、
     // 圆角 16px、图标 14px —— 宠物小的时候整条 toast 不再跟着缩到看不清
     padding: `${scaled(0.026, '10px', '12px')} ${scaled(0.0347, '14px', '16px')}`,
-    borderRadius: 'min(24px, max(16px, calc(var(--dsh-pet-size, 462px) * 0.052)))',
+    // 全圆角（胶囊）：CSS 会把超过边长一半的半径按比例缩到半高，多行时也是胶囊而不是方块
+    borderRadius: '999px',
     background: 'var(--surface, #ffffff)',
     color: 'var(--overlay-foreground, #18181b)',
     fontSize: scaled(0.0303, '14px', '15px'),
