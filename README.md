@@ -292,7 +292,7 @@ pnpm run build         # 产物构建 (tsdown)
 [npm-downloads-href]: https://npmx.dev/package/dsh-pet-component
 [bundle-src]: https://img.shields.io/bundlephobia/minzip/dsh-pet-component?style=flat&colorA=080f12&colorB=1fa669&label=minzip
 [bundle-href]: https://bundlephobia.com/result?p=dsh-pet-component
-[license-src]: https://img.shields.io/github/license/hairyf/dsh-pet-component.svg?style=flat&colorA=080f12&colorB=1fa669
-[license-href]: https://github.com/hairyf/dsh-pet-component/blob/main/LICENSE
+[license-src]: https://img.shields.io/github/license/dsh-tauri/dsh-pet-component.svg?style=flat&colorA=080f12&colorB=1fa669
+[license-href]: https://github.com/dsh-tauri/dsh-pet-component/blob/main/LICENSE
 [jsdocs-src]: https://img.shields.io/badge/jsdocs-reference-080f12?style=flat&colorA=080f12&colorB=1fa669
 [jsdocs-href]: https://www.jsdocs.io/package/dsh-pet-component

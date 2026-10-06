@@ -7,12 +7,12 @@
   "author": "Hairyf <wwu710632@gmail.com>",
   "license": "MIT",
   "funding": "https://github.com/sponsors/hairyf",
-  "homepage": "https://github.com/hairyf/dsh-pet-component#readme",
+  "homepage": "https://github.com/dsh-tauri/dsh-pet-component#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hairyf/dsh-pet-component.git"
+    "url": "git+https://github.com/dsh-tauri/dsh-pet-component.git"
   },
-  "bugs": "https://github.com/hairyf/dsh-pet-component/issues",
+  "bugs": "https://github.com/dsh-tauri/dsh-pet-component/issues",
   "keywords": [],
   "sideEffects": false,
   "exports": {
